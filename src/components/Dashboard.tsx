@@ -1,12 +1,14 @@
-import React from 'react';
-import { MonthlySummary, MemberSummary } from '../types';
-import { ShieldAlert, CheckCircle, HelpCircle } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { MonthlySummary, MemberSummary, MealLog, Member } from '../types';
+import { ShieldAlert, CheckCircle, HelpCircle, CalendarDays, Sun, Moon } from 'lucide-react';
 
 interface DashboardProps {
   summary: MonthlySummary;
+  mealLogs: MealLog[];
+  members: Member[];
 }
 
-export default function Dashboard({ summary }: DashboardProps) {
+export default function Dashboard({ summary, mealLogs, members }: DashboardProps) {
   const {
     totalBazarExpense,
     totalMeals,
@@ -16,6 +18,37 @@ export default function Dashboard({ summary }: DashboardProps) {
     totalDeposits,
     memberSummaries
   } = summary;
+
+  // Track the date selected for daily meal counter. Defaults to local today.
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  });
+
+  const handleShiftDay = (days: number) => {
+    const current = new Date(selectedDate);
+    if (isNaN(current.getTime())) return;
+    current.setDate(current.getDate() + days);
+    const year = current.getFullYear();
+    const month = String(current.getMonth() + 1).padStart(2, '0');
+    const day = String(current.getDate()).padStart(2, '0');
+    setSelectedDate(`${year}-${month}-${day}`);
+  };
+
+  const dayLogs = useMemo(() => {
+    return mealLogs.filter((log) => log.date === selectedDate);
+  }, [mealLogs, selectedDate]);
+
+  const totalLunch = useMemo(() => {
+    return dayLogs.reduce((sum, log) => sum + (log.lunch || 0), 0);
+  }, [dayLogs]);
+
+  const totalDinner = useMemo(() => {
+    return dayLogs.reduce((sum, log) => sum + (log.dinner || 0), 0);
+  }, [dayLogs]);
 
   return (
     <div className="space-y-6 animate-fadeIn" id="dashboard-container">
@@ -116,6 +149,96 @@ export default function Dashboard({ summary }: DashboardProps) {
         {/* Side Panel: Cash Ledgers & Alerts */}
         <div className="lg:col-span-4 space-y-6" id="dashboard-side-panel">
           
+          {/* Current Day Meals Tracker Widget */}
+          <div className="tech-box p-6 bg-white flex flex-col justify-between animate-fadeIn" id="current-day-meals-card">
+            <div>
+              <div className="flex justify-between items-center mb-4 border-b border-[#141414] pb-2">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-[#141414] flex items-center gap-1.5">
+                  <CalendarDays size={14} className="text-[#141414]" />
+                  <span>Daily Meal Counter</span>
+                </h3>
+                
+                <div className="flex items-center border border-[#141414] bg-[#F0EFEC] p-0.5 font-mono text-[10px]">
+                  <button
+                    onClick={() => handleShiftDay(-1)}
+                    className="px-1.5 py-0.5 hover:bg-[#141414] hover:text-white transition-all font-bold cursor-pointer"
+                    title="Previous Day"
+                  >
+                    &lt;
+                  </button>
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="bg-transparent border-0 px-1 font-bold focus:outline-none cursor-pointer text-center max-w-[105px] text-[#141414]"
+                  />
+                  <button
+                    onClick={() => handleShiftDay(1)}
+                    className="px-1.5 py-0.5 hover:bg-[#141414] hover:text-white transition-all font-bold cursor-pointer"
+                    title="Next Day"
+                  >
+                    &gt;
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 mb-4" id="daily-totals">
+                {/* Lunch Total Box */}
+                <div className="border border-[#141414] bg-[#F0EFEC]/40 p-3 flex flex-col justify-between relative overflow-hidden shadow-[2px_2px_0px_0px_rgba(20,20,20,0.15)]">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#141414]/70">Total Lunch</span>
+                    <Sun size={14} className="text-amber-600" />
+                  </div>
+                  <p className="text-2xl font-mono font-black text-[#141414] mt-2">
+                    {totalLunch % 1 === 0 ? totalLunch : totalLunch.toFixed(1)}
+                  </p>
+                </div>
+
+                {/* Dinner Total Box */}
+                <div className="border border-[#141414] bg-[#F0EFEC]/40 p-3 flex flex-col justify-between relative overflow-hidden shadow-[2px_2px_0px_0px_rgba(20,20,20,0.15)]">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#141414]/70">Total Dinner</span>
+                    <Moon size={14} className="text-indigo-600" />
+                  </div>
+                  <p className="text-2xl font-mono font-black text-[#141414] mt-2">
+                    {totalDinner % 1 === 0 ? totalDinner : totalDinner.toFixed(1)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Active meals details for the selected day */}
+              <div className="space-y-1.5">
+                <p className="text-[9px] font-mono uppercase text-[#141414]/65">Member Meals ({selectedDate}):</p>
+                {dayLogs.length === 0 ? (
+                  <p className="text-[10px] font-mono text-center py-3 text-gray-500 uppercase italic border border-dashed border-[#141414]/20 bg-[#F0EFEC]/10">
+                    No meals recorded for this date
+                  </p>
+                ) : (
+                  <div className="max-h-[150px] overflow-y-auto space-y-1 pr-1 font-mono text-xs">
+                    {members.filter(m => m.status === 'Active').map((member) => {
+                      const log = dayLogs.find(l => l.memberId === member.id);
+                      const lunchVal = log ? log.lunch : 0;
+                      const dinnerVal = log ? log.dinner : 0;
+                      return (
+                        <div key={member.id} className="flex justify-between items-center p-1.5 border border-[#141414]/10 bg-[#F0EFEC]/20 hover:border-[#141414]/30">
+                          <span className="font-bold text-[#141414] text-[11px] truncate max-w-[120px] uppercase">{member.name}</span>
+                          <div className="flex gap-2 text-[11px]">
+                            <span className="bg-amber-100 text-amber-800 border border-amber-300 px-1 py-0.2 rounded font-bold">
+                              L: {lunchVal}
+                            </span>
+                            <span className="bg-indigo-100 text-indigo-800 border border-indigo-300 px-1 py-0.2 rounded font-bold">
+                              D: {dinnerVal}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
           {/* Cash Ledger Details */}
           <div className="tech-box p-6 bg-white flex flex-col justify-between" id="financial-overview-card">
             <div>
