@@ -112,11 +112,11 @@ export default function App() {
   // Derived helper: list of all months that have entries across the system, or just ensure active selection
   const availableMonths = useMemo(() => {
     const months = new Set<string>();
-    
+
     // Add current month & previous month as absolute defaults
     const today = new Date();
     months.add(today.toISOString().substring(0, 7));
-    
+
     const prev = new Date();
     prev.setMonth(prev.getMonth() - 1);
     months.add(prev.toISOString().substring(0, 7));
@@ -311,7 +311,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#E4E3E0] text-[#141414] flex flex-col lg:flex-row font-sans" id="hostel-mess-app">
-      
+
       {/* SIDEBAR: Left Panel (Desktop-fixed, mobile collapsable/responsive) */}
       <aside className="w-full lg:w-64 bg-[#D8D7D3] border-b-2 lg:border-b-0 lg:border-r-2 border-[#141414] flex flex-col justify-between p-6 shrink-0" id="main-sidebar">
         <div>
@@ -329,7 +329,7 @@ export default function App() {
                 </span>
               </div>
             </div>
-            
+
             {/* Quick backup controls inside Sidebar */}
             <div className="flex items-center space-x-1 mt-2 lg:mt-4" id="backup-actions">
               <button
@@ -339,7 +339,7 @@ export default function App() {
               >
                 <Download size={13} />
               </button>
-              
+
               {isManager && (
                 <>
                   <label
@@ -380,7 +380,7 @@ export default function App() {
                 localStorage.setItem('mess_current_member_id', e.target.value);
               }}
             >
-              {state.members.map((m: { id: React.Key | readonly string[] | null | undefined; name: string; role: string | number | bigint | boolean | React.ReactElement<unknown, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | React.ReactPortal | Promise<string | number | bigint | boolean | React.ReactPortal | React.ReactElement<unknown, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | null | undefined> | null | undefined; }) => (
+              {state.members.map((m: Member) => (
                 <option key={m.id} value={m.id}>
                   {m.name.toUpperCase()} ({m.role})
                 </option>
@@ -402,11 +402,10 @@ export default function App() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex items-center space-x-2 text-xs font-bold uppercase tracking-wide py-2 px-3 border-b-2 lg:border-b-0 lg:border-l-4 transition-all shrink-0 cursor-pointer text-left ${
-                    isActive
+                  className={`flex items-center space-x-2 text-xs font-bold uppercase tracking-wide py-2 px-3 border-b-2 lg:border-b-0 lg:border-l-4 transition-all shrink-0 cursor-pointer text-left ${isActive
                       ? 'border-[#141414] text-[#141414] font-black'
                       : 'border-transparent text-[#141414]/65 hover:text-[#141414] hover:border-[#141414]/40'
-                  }`}
+                    }`}
                 >
                   {tab.icon}
                   <span>{tab.label}</span>
@@ -428,10 +427,10 @@ export default function App() {
 
       {/* MAIN CONTENT AREA */}
       <main className="flex-1 flex flex-col min-w-0" id="main-content-canvas">
-        
+
         {/* TOP METRICS HEADER ROW (Dynamic stats bar from the design specs) */}
         <header className="grid grid-cols-2 md:grid-cols-4 border-b-2 border-[#141414] bg-white" id="metrics-bar">
-          
+
           {/* Stat 1: Current Meal Rate */}
           <div className="border-r border-b md:border-b-0 border-[#141414] p-4 flex flex-col justify-between" id="stat-meal-rate">
             <p className="tech-header-serif">Current Meal Rate</p>
@@ -484,11 +483,11 @@ export default function App() {
               >
                 <ChevronLeft size={16} />
               </button>
-              
+
               <span className="px-3 text-xs font-mono font-bold text-[#141414] min-w-[90px] text-center">
                 {selectedMonth}
               </span>
-              
+
               <button
                 onClick={handleNextMonth}
                 title="Next Month"
@@ -514,8 +513,8 @@ export default function App() {
         <section className="flex-1 p-6 overflow-y-auto" id="workspace-canvas">
           <div className="max-w-6xl mx-auto" id="workspace-inner">
             {activeTab === 'dashboard' && (
-              <Dashboard 
-                summary={monthlySummary} 
+              <Dashboard
+                summary={monthlySummary}
                 mealLogs={state.mealLogs}
                 members={state.members}
               />
