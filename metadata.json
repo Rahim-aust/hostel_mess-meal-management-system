@@ -1,0 +1,6 @@
+{
+  "name": "Hostel/Mess Meal Management System",
+  "description": "An optimized management system to track daily meals, grocery expenses, deposits, and shared utility costs for hostel or mess members with automated balance and meal rate calculations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
