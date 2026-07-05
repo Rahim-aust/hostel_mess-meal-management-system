@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { MonthlySummary, MemberSummary, MealLog, Member } from '../types';
-import { ShieldAlert, CheckCircle, HelpCircle, CalendarDays, Sun, Moon } from 'lucide-react';
+import { MonthlySummary, MealLog, Member } from '../types';
+import { ShieldAlert, CheckCircle, CalendarDays, Sun, Moon } from 'lucide-react';
 
 interface DashboardProps {
   summary: MonthlySummary;
@@ -111,16 +111,16 @@ export default function Dashboard({ summary, mealLogs, members }: DashboardProps
                         {mSum.totalMeals.toFixed(1)}
                       </td>
                       <td className="py-3 px-4 text-right text-[#141414]">
-                        ৳{mSum.depositedAmount.toLocaleString()}
+                        Tk {mSum.depositedAmount.toLocaleString()}
                       </td>
                       <td className="py-3 px-4 text-right text-[#141414]/80">
-                        ৳{mSum.mealCost.toFixed(1)}
+                        Tk {mSum.mealCost.toFixed(1)}
                       </td>
                       <td className="py-3 px-4 text-right text-[#141414]/80">
-                        ৳{mSum.utilityShare.toFixed(0)}
+                        Tk {mSum.utilityShare.toFixed(0)}
                       </td>
                       <td className="py-3 px-4 text-right text-[#141414] font-bold">
-                        ৳{mSum.totalCost.toFixed(1)}
+                        Tk {mSum.totalCost.toFixed(1)}
                       </td>
                       <td className="py-3 px-4 text-right">
                         <span
@@ -132,7 +132,7 @@ export default function Dashboard({ summary, mealLogs, members }: DashboardProps
                               : 'border-emerald-600 bg-emerald-50 text-emerald-700'
                           }`}
                         >
-                          {isDue ? '-' : isClear ? '' : '+'}৳{Math.abs(mSum.balance).toFixed(1)}
+                          {isDue ? '-' : isClear ? '' : '+'}Tk {Math.abs(mSum.balance).toFixed(1)}
                           <span className="text-[8px] block font-normal opacity-75 uppercase tracking-wider">
                             {isDue ? 'Pay Due' : isClear ? 'Clear' : 'Refund'}
                           </span>
@@ -163,6 +163,7 @@ export default function Dashboard({ summary, mealLogs, members }: DashboardProps
                     onClick={() => handleShiftDay(-1)}
                     className="px-1.5 py-0.5 hover:bg-[#141414] hover:text-white transition-all font-bold cursor-pointer"
                     title="Previous Day"
+                    aria-label="Previous day"
                   >
                     &lt;
                   </button>
@@ -176,6 +177,7 @@ export default function Dashboard({ summary, mealLogs, members }: DashboardProps
                     onClick={() => handleShiftDay(1)}
                     className="px-1.5 py-0.5 hover:bg-[#141414] hover:text-white transition-all font-bold cursor-pointer"
                     title="Next Day"
+                    aria-label="Next day"
                   >
                     &gt;
                   </button>
@@ -249,21 +251,21 @@ export default function Dashboard({ summary, mealLogs, members }: DashboardProps
               <div className="space-y-3 font-mono text-[11px] text-[#141414]">
                 <div className="flex justify-between border-b border-[#141414]/10 pb-1">
                   <span className="opacity-70 uppercase">Total Deposits</span>
-                  <span className="font-bold">৳{totalDeposits.toLocaleString()}</span>
+                  <span className="font-bold">Tk {totalDeposits.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between border-b border-[#141414]/10 pb-1">
                   <span className="opacity-70 uppercase">Total Bazar Used</span>
-                  <span className="font-bold">৳{totalBazarExpense.toLocaleString()}</span>
+                  <span className="font-bold">Tk {totalBazarExpense.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between border-b border-[#141414]/10 pb-1">
                   <span className="opacity-70 uppercase">Net Utility Cost</span>
-                  <span className="font-bold">৳{totalUtilities.toLocaleString()}</span>
+                  <span className="font-bold">Tk {totalUtilities.toLocaleString()}</span>
                 </div>
                 
                 <div className="pt-3 border-t border-[#141414] flex justify-between items-baseline">
                   <span className="font-bold text-xs uppercase">Mess Vault Cash</span>
                   <span className={`text-lg font-black ${totalDeposits - totalBazarExpense - totalUtilities >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
-                    ৳{(totalDeposits - totalBazarExpense - totalUtilities).toLocaleString()}
+                    Tk {(totalDeposits - totalBazarExpense - totalUtilities).toLocaleString()}
                   </span>
                 </div>
               </div>
@@ -300,7 +302,7 @@ export default function Dashboard({ summary, mealLogs, members }: DashboardProps
                         <div key={mSum.member.id} className="flex items-center justify-between p-2 border border-[#141414]/20 hover:border-[#141414] bg-[#F0EFEC]/45 text-xs">
                           <span className="font-bold uppercase text-[#141414]">{mSum.member.name}</span>
                           <span className="font-bold text-rose-600">
-                            ৳{Math.abs(mSum.balance).toFixed(0)}
+                            Tk {Math.abs(mSum.balance).toFixed(0)}
                           </span>
                         </div>
                       ))}

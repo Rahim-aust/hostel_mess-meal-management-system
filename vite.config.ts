@@ -15,7 +15,7 @@ export default defineConfig({
 
     // Remove this plugin if you don't want bundle analysis
     visualizer({
-      open: true,
+      open: process.env.OPEN_BUNDLE_ANALYZER === 'true',
       gzipSize: true,
       brotliSize: true,
       filename: 'stats.html',
@@ -31,6 +31,7 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 3000,
+    strictPort: true,
     hmr: process.env.DISABLE_HMR !== 'true',
     watch: process.env.DISABLE_HMR === 'true' ? null : {},
   },

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Member, BazarExpense, Utility } from '../types';
-import { Plus, Trash2, ShoppingBag, ShieldCheck, DollarSign, Calendar, Edit, FileText } from 'lucide-react';
+import { Plus, Trash2, ShoppingBag, ShieldCheck } from 'lucide-react';
+import { getMonthDateBounds } from '../utils/date';
 
 interface ExpenseTrackerProps {
   members: Member[];
@@ -139,6 +140,7 @@ export default function ExpenseTracker({
   // Filter Bazar expenses for the active month
   const monthBazarExpenses = bazarExpenses.filter(e => e.date.substring(0, 7) === selectedMonth);
   const totalMonthBazar = monthBazarExpenses.reduce((sum, e) => sum + e.amount, 0);
+  const dateBounds = getMonthDateBounds(selectedMonth);
 
   return (
     <div className="space-y-6 animate-fadeIn" id="expense-tracker-root">
@@ -190,8 +192,8 @@ export default function ExpenseTracker({
                     <input
                       type="date"
                       required
-                      min={`${selectedMonth}-01`}
-                      max={`${selectedMonth}-31`}
+                      min={dateBounds.min}
+                      max={dateBounds.max}
                       className="w-full bg-[#F0EFEC] border-2 border-[#141414] px-3 py-2 font-bold text-[#141414] focus:outline-none"
                       value={bazarDate}
                       onChange={(e) => setBazarDate(e.target.value)}
@@ -200,9 +202,9 @@ export default function ExpenseTracker({
 
                   {/* Amount Input */}
                   <div className="space-y-1">
-                    <label className="text-[#141414] font-bold text-[10px] uppercase block">Amount (Tk / ৳)</label>
+                    <label className="text-[#141414] font-bold text-[10px] uppercase block">Amount (Tk / Tk )</label>
                     <div className="relative">
-                      <span className="absolute left-3 top-2 font-black">৳</span>
+                      <span className="absolute left-3 top-2 font-black">Tk </span>
                       <input
                         type="number"
                         placeholder="e.g. 1500"
@@ -274,7 +276,7 @@ export default function ExpenseTracker({
                   <p className="text-[10px] font-mono text-[#141414]/60 uppercase mt-1">Grocery expenses log for {selectedMonth}</p>
                 </div>
                 <div className="bg-[#F27D26] text-white px-3 py-1.5 border-2 border-[#141414] text-xs font-bold font-mono">
-                  TOTAL BAZAR: ৳{totalMonthBazar.toLocaleString()}
+                  TOTAL BAZAR: Tk {totalMonthBazar.toLocaleString()}
                 </div>
               </div>
 
@@ -295,7 +297,7 @@ export default function ExpenseTracker({
                       >
                         <div className="space-y-1 flex-1 pr-4 font-mono text-xs">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-sm font-bold text-[#141414]">৳{exp.amount}</span>
+                            <span className="text-sm font-bold text-[#141414]">Tk {exp.amount}</span>
                             <span className="text-[9px] font-bold bg-[#141414] text-[#E4E3E0] px-1.5 py-0.2 uppercase">
                               BUYER: {buyer ? buyer.name.toUpperCase() : 'UNKNOWN'}
                             </span>
@@ -310,11 +312,8 @@ export default function ExpenseTracker({
 
                         {isManager && (
                           <button
-                            onClick={() => {
-                              if (confirm('Are you sure you want to delete this grocery expense?')) {
-                                onDeleteBazarExpense(exp.id);
-                              }
-                            }}
+                            onClick={() => onDeleteBazarExpense(exp.id)}
+                            aria-label={`Delete grocery expense from ${exp.date}`}
                             className="p-1.5 text-[#141414] hover:bg-rose-600 hover:text-white border border-transparent hover:border-[#141414] transition-all cursor-pointer"
                           >
                             <Trash2 size={13} />
@@ -355,7 +354,7 @@ export default function ExpenseTracker({
                 <div className="space-y-1">
                   <label className="text-[#141414] font-bold text-[10px] uppercase block">Cook Salary (Bua)</label>
                   <div className="relative">
-                    <span className="absolute left-3 top-2 font-black">৳</span>
+                    <span className="absolute left-3 top-2 font-black">Tk </span>
                     <input
                       type="number"
                       disabled={!isManager}
@@ -370,7 +369,7 @@ export default function ExpenseTracker({
                 <div className="space-y-1">
                   <label className="text-[#141414] font-bold text-[10px] uppercase block">Electricity Bill</label>
                   <div className="relative">
-                    <span className="absolute left-3 top-2 font-black">৳</span>
+                    <span className="absolute left-3 top-2 font-black">Tk </span>
                     <input
                       type="number"
                       disabled={!isManager}
@@ -385,7 +384,7 @@ export default function ExpenseTracker({
                 <div className="space-y-1">
                   <label className="text-[#141414] font-bold text-[10px] uppercase block">Gas Line / Cylinder</label>
                   <div className="relative">
-                    <span className="absolute left-3 top-2 font-black">৳</span>
+                    <span className="absolute left-3 top-2 font-black">Tk </span>
                     <input
                       type="number"
                       disabled={!isManager}
@@ -400,7 +399,7 @@ export default function ExpenseTracker({
                 <div className="space-y-1">
                   <label className="text-[#141414] font-bold text-[10px] uppercase block">Waste Collection (Moila)</label>
                   <div className="relative">
-                    <span className="absolute left-3 top-2 font-black">৳</span>
+                    <span className="absolute left-3 top-2 font-black">Tk </span>
                     <input
                       type="number"
                       disabled={!isManager}
@@ -415,7 +414,7 @@ export default function ExpenseTracker({
                 <div className="space-y-1">
                   <label className="text-[#141414] font-bold text-[10px] uppercase block">WiFi Internet Bill</label>
                   <div className="relative">
-                    <span className="absolute left-3 top-2 font-black">৳</span>
+                    <span className="absolute left-3 top-2 font-black">Tk </span>
                     <input
                       type="number"
                       disabled={!isManager}
@@ -430,7 +429,7 @@ export default function ExpenseTracker({
                 <div className="space-y-1">
                   <label className="text-[#141414] font-bold text-[10px] uppercase block">Other Shared Utilities</label>
                   <div className="relative">
-                    <span className="absolute left-3 top-2 font-black">৳</span>
+                    <span className="absolute left-3 top-2 font-black">Tk </span>
                     <input
                       type="number"
                       disabled={!isManager}
@@ -478,33 +477,33 @@ export default function ExpenseTracker({
               <div className="space-y-1.5 text-xs font-mono">
                 <div className="flex justify-between p-2 bg-[#F0EFEC]/55 border border-[#141414]/15">
                   <span className="tech-header-serif text-[#141414]/75 normal-case">Maid / Cook:</span>
-                  <span className="font-bold text-[#141414]">৳{parseFloat(bua) || 0}</span>
+                  <span className="font-bold text-[#141414]">Tk {parseFloat(bua) || 0}</span>
                 </div>
                 <div className="flex justify-between p-2 bg-[#F0EFEC]/55 border border-[#141414]/15">
                   <span className="tech-header-serif text-[#141414]/75 normal-case">Electricity:</span>
-                  <span className="font-bold text-[#141414]">৳{parseFloat(electricity) || 0}</span>
+                  <span className="font-bold text-[#141414]">Tk {parseFloat(electricity) || 0}</span>
                 </div>
                 <div className="flex justify-between p-2 bg-[#F0EFEC]/55 border border-[#141414]/15">
                   <span className="tech-header-serif text-[#141414]/75 normal-case">Gas bill:</span>
-                  <span className="font-bold text-[#141414]">৳{parseFloat(gas) || 0}</span>
+                  <span className="font-bold text-[#141414]">Tk {parseFloat(gas) || 0}</span>
                 </div>
                 <div className="flex justify-between p-2 bg-[#F0EFEC]/55 border border-[#141414]/15">
                   <span className="tech-header-serif text-[#141414]/75 normal-case">Moila (Waste):</span>
-                  <span className="font-bold text-[#141414]">৳{parseFloat(waste) || 0}</span>
+                  <span className="font-bold text-[#141414]">Tk {parseFloat(waste) || 0}</span>
                 </div>
                 <div className="flex justify-between p-2 bg-[#F0EFEC]/55 border border-[#141414]/15">
                   <span className="tech-header-serif text-[#141414]/75 normal-case">WiFi Internet:</span>
-                  <span className="font-bold text-[#141414]">৳{parseFloat(internet) || 0}</span>
+                  <span className="font-bold text-[#141414]">Tk {parseFloat(internet) || 0}</span>
                 </div>
                 <div className="flex justify-between p-2 bg-[#F0EFEC]/55 border border-[#141414]/15">
                   <span className="tech-header-serif text-[#141414]/75 normal-case">Others:</span>
-                  <span className="font-bold text-[#141414]">৳{parseFloat(others) || 0}</span>
+                  <span className="font-bold text-[#141414]">Tk {parseFloat(others) || 0}</span>
                 </div>
 
                 <div className="flex justify-between p-3 bg-[#141414] text-[#E4E3E0] font-mono text-xs font-bold uppercase mt-4">
                   <span>Grand Total:</span>
                   <span>
-                    ৳
+                    Tk 
                     {(
                       (parseFloat(bua) || 0) +
                       (parseFloat(electricity) || 0) +

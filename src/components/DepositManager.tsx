@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Member, Deposit } from '../types';
-import { Plus, Trash2, Calendar, ShieldCheck, DollarSign, Wallet } from 'lucide-react';
+import { Plus, Trash2, DollarSign, Wallet } from 'lucide-react';
+import { getMonthDateBounds } from '../utils/date';
 
 interface DepositManagerProps {
   members: Member[];
@@ -67,6 +68,7 @@ export default function DepositManager({
   // Filter deposits to selected month
   const monthDeposits = deposits.filter(d => d.date.substring(0, 7) === selectedMonth);
   const totalMonthDeposits = monthDeposits.reduce((sum, d) => sum + d.amount, 0);
+  const dateBounds = getMonthDateBounds(selectedMonth);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fadeIn" id="deposit-manager-root">
@@ -94,8 +96,8 @@ export default function DepositManager({
                 <input
                   type="date"
                   required
-                  min={`${selectedMonth}-01`}
-                  max={`${selectedMonth}-31`}
+                  min={dateBounds.min}
+                  max={dateBounds.max}
                   className="w-full bg-[#F0EFEC] border-2 border-[#141414] px-3 py-2 font-bold text-[#141414] focus:outline-none"
                   value={depositDate}
                   onChange={(e) => setDepositDate(e.target.value)}
@@ -119,9 +121,9 @@ export default function DepositManager({
 
               {/* Amount Input */}
               <div className="space-y-1">
-                <label className="text-[#141414] font-bold text-[10px] uppercase block">Amount Deposited (Tk / ৳)</label>
+                <label className="text-[#141414] font-bold text-[10px] uppercase block">Amount Deposited (Tk / Tk )</label>
                 <div className="relative">
-                  <span className="absolute left-3 top-2 font-black">৳</span>
+                  <span className="absolute left-3 top-2 font-black">Tk </span>
                   <input
                     type="number"
                     placeholder="e.g. 2000"
@@ -166,7 +168,7 @@ export default function DepositManager({
             </div>
             <div className="bg-[#10B981] text-white px-3 py-1.5 border-2 border-[#141414] text-xs font-bold font-mono flex items-center space-x-1">
               <Wallet size={13} />
-              <span>TOTAL DEPOSITS: ৳{totalMonthDeposits.toLocaleString()}</span>
+              <span>TOTAL DEPOSITS: Tk {totalMonthDeposits.toLocaleString()}</span>
             </div>
           </div>
 
@@ -187,11 +189,11 @@ export default function DepositManager({
                   >
                     <div className="flex items-center space-x-3">
                       <div className="w-8 h-8 border-2 border-[#141414] bg-[#10B981] text-white flex items-center justify-center font-bold text-[10px] font-mono">
-                        +৳
+                        +Tk 
                       </div>
                       <div className="font-mono">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-sm font-bold text-[#141414]">৳{dep.amount}</span>
+                          <span className="text-sm font-bold text-[#141414]">Tk {dep.amount}</span>
                           <span className="text-xs font-bold text-[#141414]/80 uppercase">
                             BY {member ? member.name.toUpperCase() : 'UNKNOWN MEMBER'}
                           </span>
@@ -204,11 +206,8 @@ export default function DepositManager({
 
                     {isManager && (
                       <button
-                        onClick={() => {
-                          if (confirm(`Delete payment record of ৳${dep.amount} from ${member?.name || 'this member'}?`)) {
-                            onDeleteDeposit(dep.id);
-                          }
-                        }}
+                        onClick={() => onDeleteDeposit(dep.id)}
+                        aria-label={`Delete payment record from ${member?.name || 'member'}`}
                         className="p-1.5 text-[#141414] hover:bg-rose-600 hover:text-white border border-transparent hover:border-[#141414] transition-all cursor-pointer"
                       >
                         <Trash2 size={13} />

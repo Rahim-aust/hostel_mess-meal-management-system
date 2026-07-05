@@ -1,82 +1,80 @@
 # Hostel Mess Meal & Expense Tracker
 
-A modern, highly polished, real-time full-stack application built with **React**, **Vite**, **TypeScript**, **Tailwind CSS**, and **Firebase Firestore** to manage hostel mess meals, grocery bazar logs, deposits, shared utilities, and final member balances.
+A React, Vite, TypeScript, Tailwind CSS, and Firebase Firestore app for managing hostel or bachelor mess meals, bazar costs, deposits, shared utilities, and final member balances.
 
-This application simplifies the complex calculations involved in running a hostel or shared-apartment mess (e.g. Bangladesh/India mess system). It automates calculating meal rates, splitting utility charges, tracking individual member deposits, and generating the final ledger.
+The app is designed for mess systems where one or more managers maintain records and members can log in with their registered email to view their own mess data.
 
----
+## Features
 
-## 🚀 Key Features
+- Real-time data sync with Firebase Firestore.
+- Simple email-based login using the email stored in the member registry.
+- Manager and member roles.
+- Managers can add/edit members, phone numbers, emails, roles, and active status.
+- Managers can log meals, bazar costs, deposits, and utility bills.
+- Members can view records and update only their own meal entry.
+- Manual guest meal support, such as `5` lunch and `5.5` dinner.
+- Automatic meal rate, utility share, total cost, refund, and due calculation.
+- Backup export and validated backup restore.
+- Demo seed data when Firestore is empty.
 
-*   **Real-time Synchronization**: Powered by Firebase Firestore, ensuring changes made by any member or manager are updated instantly across all devices.
-*   **Role-Based Access Control**: Enforces standard roles (`Mess Manager` and `Regular Member`).
-    *   *Managers* can log daily meals, record member deposits, adjust active/inactive registries, and write Bazar entries.
-    *   *Regular Members* enjoy a clean, secure read-only interface where they can track metrics, view bills, and audit logs.
-*   **Aesthetic Typography & Layout**: Built on a modern visual slate layout using high-contrast typography ("Inter" paired with monospace detail headers) and clean borders.
-*   **Robust Meal Logging Engine**: 
-    *   Log daily lunch/dinner counts with 1-click presets (`0`, `½`, `1`, `1½`, `2`).
-    *   **Text-Type Input Facility**: Enter custom fractional or integer meal quantities directly with real-time decimal validation.
-*   **Detailed Bazar Grocery Log**: Log dates, precise amounts (৳ / Tk), purchasing member names, and itemized lists of purchased food.
-*   **Flexible Shared Utilities**: Log monthly common expenses (Internet, Cook salary, Gas, Electricity, Maid) that get evenly divided among *Active/Active-registered* members.
-*   **Advance Deposit Ledger**: Track payments and funds received from members in advance.
-*   **Automated Accounting Calculator**:
-    *   **Total Bazar Costs & Meal Count**: Sums all market purchases and divides by total active meals to generate a mathematically precise **Meal Rate**.
-    *   **Shared Utility Splits**: Evenly splits shared utilities among currently active mess members (paused members are automatically exempted).
-    *   **Individual Ledger**: Calculates total meals eaten per person, individual meal expenses, plus their share of utilities, subtracted from their paid deposits to show their exact balance (**Refund** or **Due**).
-*   **Database Seeding, Backups, & Resets**: Automatically populates with safe sample demo data if the Firestore database is empty. Includes quick backup/restore and database reset features.
+## Tech Stack
 
----
+- React 19
+- Vite
+- TypeScript
+- Tailwind CSS 4
+- Firebase Firestore
+- Lucide React icons
 
-## 🛠️ Tech Stack & Architecture
+## Requirements
 
-*   **Frontend**: React 19 (Functional Hooks, Context), Vite (Development Bundler)
-*   **Language**: TypeScript (Strong typing, clean interfaces)
-*   **Styling**: Tailwind CSS 4 (Responsive, rapid utility classes, modern palette)
-*   **Icons**: Lucide React
-*   **Animations**: Motion (formerly Framer Motion)
-*   **Backend / DB**: Firebase Web SDK, Firebase Firestore (Real-time NoSQL cloud store)
+- Node.js 18 or newer
+- npm
+- A Firebase account
 
----
+## Start From GitHub With Your Own Firebase Project
 
-## 📋 Prerequisites
+Follow these steps if you clone or fork this project and want to run it with your own Firebase ID/config.
 
-Before you get started, ensure you have the following installed on your local machine:
+### 1. Clone The Repository
 
-1.  **Node.js** (v18.0.0 or higher is recommended)
-2.  **npm** (Node Package Manager)
-3.  **A Firebase Account** (Free tier is perfectly sufficient)
-
----
-
-## ⚙️ Local Setup & Setup Guide
-
-Follow these steps to run this project locally on your machine.
-
-### Step 1: Clone the Repository
-Clone this repository to your local system and navigate to the project directory:
 ```bash
 git clone <your-repository-url>
-cd hostel-mess-meal-tracker
+cd hostel_mess-meal-management-system
 ```
 
-### Step 2: Install Dependencies
-Install all package dependencies defined in the project:
+### 2. Install Dependencies
+
 ```bash
 npm install
 ```
 
-### Step 3: Firebase Firestore Setup
-This project uses **Firebase Firestore** as its real-time database. You will need to link your own Firebase project.
+### 3. Create A Firebase Project
 
-1.  Go to the [Firebase Console](https://console.firebase.google.com/) and click **Add project**. Name your project (e.g., `hostel-mess-tracker`) and create it.
-2.  In the Project Overview panel, add a **Web Application**. Register your app and copy the credentials snippet (`firebaseConfig`).
-3.  In the Firebase sidebar, go to **Firestore Database** and click **Create database**.
-    *   Select your region.
-    *   Start in **Test mode** (or configure secure read/write rules. The rule set used for this project is provided below).
-4.  In the root directory of your cloned codebase, create a new file named `firebase-applet-config.json` and paste your Firebase credentials into it.
+1. Go to [Firebase Console](https://console.firebase.google.com/).
+2. Click **Add project**.
+3. Create a project, for example `hostel-mess-tracker`.
+4. In the project dashboard, click the web app icon `</>`.
+5. Register the app.
+6. Copy the Firebase web config values.
 
-#### `firebase-applet-config.json` Template:
-Create the file at the root `/firebase-applet-config.json` with this exact structure:
+### 4. Enable Firestore
+
+1. In Firebase Console, open **Firestore Database**.
+2. Click **Create database**.
+3. Choose a region.
+4. For local/dev testing, you can start in test mode.
+
+### 5. Add Your Firebase Config File
+
+Create this file in the project root:
+
+```text
+firebase-applet-config.json
+```
+
+Paste your Firebase config in this shape:
+
 ```json
 {
   "projectId": "your-firebase-project-id",
@@ -89,10 +87,13 @@ Create the file at the root `/firebase-applet-config.json` with this exact struc
   "measurementId": ""
 }
 ```
-> **Note**: If your Firestore database has a custom Database ID (other than the standard `(default)` instance), specify it in the `"firestoreDatabaseId"` field.
 
-#### Firestore Security Rules (`firestore.rules`):
-To enable development and seamless reading/writing, publish these rules in your Firebase Console's Firestore Rules tab:
+Use `(default)` for `firestoreDatabaseId` unless you created a custom Firestore database ID.
+
+### 6. Add Firestore Rules For Development
+
+For local testing only, you can publish:
+
 ```javascript
 rules_version = '2';
 service cloud.firestore {
@@ -104,77 +105,132 @@ service cloud.firestore {
 }
 ```
 
-### Step 4: Environment Variables Setup
-1.  Copy the example environment file to create a local `.env` configuration:
-    ```bash
-    cp .env.example .env
-    ```
-2.  Open `.env` in your text editor and specify your keys if needed:
-    ```env
-    GEMINI_API_KEY="your-gemini-api-key"
-    APP_URL="http://localhost:3000"
-    ```
+Important: these rules are open and are not safe for production. Before real production deployment, replace them with authenticated, role-aware rules.
 
-### Step 5: Start the Local Server
-Boot up the development environment using Vite:
+### 7. Run The App
+
 ```bash
 npm run dev
 ```
 
-Once the dev server starts, it will display the local URL. Open your browser and navigate to:
-👉 **[http://localhost:3000](http://localhost:3000)**
-
----
-
-## 📂 Project Structure
+Open:
 
 ```text
-├── assets/                    # Asset folders
-├── firebase-applet-config.json # Local Firebase SDK connection credentials (git-ignored)
-├── firestore.rules            # Firestore security rules definition
-├── index.html                 # Entry HTML template
-├── package.json               # Dependencies and executable scripts
-├── tsconfig.json              # TypeScript compilation rules
-├── vite.config.ts             # Vite server and tailwind plugins
-├── src/
-│   ├── main.tsx               # Main DOM entrypoint
-│   ├── App.tsx                # Master dashboard state layout and routing
-│   ├── index.css              # Global styles (Tailwind imports & custom typography)
-│   ├── types.ts               # Shared TypeScript typings
-│   ├── components/            # Reusable UI component modules
-│   │   ├── MealLogger.tsx     # Meal logging module with text/button inputs
-│   │   ├── ExpenseTracker.tsx # Bazar purchase cost registry
-│   │   ├── DepositManager.tsx # Advance payment cash-in ledger
-│   │   ├── MemberManager.tsx  # Member enrollment and active statuses
-│   │   ├── UtilityCostManager.tsx # Utility setup and distribution
-│   │   └── SummaryTable.tsx   # Ledger sheets with automated financial calculations
-│   └── utils/
-│       ├── firebase.ts        # Firestore synchronization, queries, and mutations
-│       └── dataStore.ts       # Fallback demo seeding records
+http://localhost:3000
 ```
 
----
+The dev server uses port `3000` with strict port mode.
 
-## 📜 Executable Commands
+## First Login
 
-You can run the following scripts in your terminal:
+The app uses simple email login:
 
-*   `npm run dev`: Launches the local Vite server at [http://localhost:3000](http://localhost:3000) with hot reloading.
-*   `npm run build`: Bundles the React codebase into static files in `dist/` optimized for production deployment.
-*   `npm run preview`: Hosts a local test server of the compiled production bundle in `dist/`.
-*   `npm run lint`: Triggers the TypeScript compiler checks to ensure type safety.
-*   `npm run clean`: Utility command to flush temporary folders and build directories.
+1. Firestore seeds demo members if the database is empty.
+2. Enter one of the registered member emails.
+3. The app finds that email in the member registry.
+4. The role in that member record decides access:
+   - `Manager`: full management access
+   - `Member`: member view and own meal entry access
 
----
+Default demo manager email:
 
-## 💡 Troubleshooting & Database Seeding
+```text
+rahim@mess.com
+```
 
-*   **Blank Screen / No Members**: On your first boot, if your Firestore instance is completely empty, the application will **automatically seed itself** with a realistic hostel mess setup (including 5 default active members, sample meal records, demo bazar logs, and utility logs).
-*   **Database Reset**: If you've modified or added values and want to return to the clean demo state, click the **Reset Firestore** button in the app's top utility bar to wipe and re-seed all collections.
-*   **Port Config**: The development server is bound to port `3000` (`--port=3000`) for consistency and compatibility.
+Managers can edit member emails from the **Members** screen. After changing an email, that member should log in using the new email.
 
----
+## Important Manager Rules
 
-## 📄 License
+- A manager can promote another member to manager.
+- A manager cannot demote themself if they are the only manager.
+- Members with historical meals, deposits, or bazar records cannot be deleted; pause them instead.
+- Managers can edit email and phone for each member.
 
-This project is open-source and free to adapt, modify, and distribute for personal or commercial hostel mess tracking.
+## Project Structure
+
+```text
+assets/
+firebase-applet-config.json
+firestore.rules
+index.html
+package.json
+tsconfig.json
+vite.config.ts
+src/
+  main.tsx
+  App.tsx
+  index.css
+  types.ts
+  components/
+    Dashboard.tsx
+    MealLogger.tsx
+    ExpenseTracker.tsx
+    DepositManager.tsx
+    MemberManager.tsx
+  utils/
+    backup.ts
+    dataStore.ts
+    date.ts
+    firebase.ts
+    meals.ts
+```
+
+## Commands
+
+```bash
+npm run dev
+```
+
+Starts the local development server.
+
+```bash
+npm run lint
+```
+
+Runs TypeScript checks.
+
+```bash
+npm run build
+```
+
+Builds the app into `dist/`.
+
+```bash
+npm run preview
+```
+
+Previews the production build locally.
+
+```bash
+npm run build:gh
+```
+
+Builds using the GitHub Pages base path.
+
+```bash
+npm run deploy
+```
+
+Deploys the `dist/` folder to GitHub Pages using `gh-pages`.
+
+## Production Checklist
+
+Before using this app with real mess data:
+
+- Run `npm run lint`.
+- Run `npm run build`.
+- Test the production build with `npm run preview`.
+- Replace open Firestore rules with secure production rules.
+- Confirm the Firebase config belongs to your own Firebase project.
+- Test login, meal logging, bazar, deposits, utilities, backup export, and backup restore.
+
+## Notes
+
+- The app stores money labels as `Tk` for consistent display across devices.
+- Manual meal input supports larger guest counts like `5`, `5.5`, and `10`.
+- Backup restore validates records before uploading them to Firestore.
+
+## License
+
+This project is free to adapt, modify, and use for personal or commercial hostel mess tracking.

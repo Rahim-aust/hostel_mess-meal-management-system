@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Member, MealLog } from '../types';
-import { Calendar, Save, Trash2, Edit2, Check, Sparkles, AlertCircle } from 'lucide-react';
+import { Save, Trash2, Edit2, Check, AlertCircle } from 'lucide-react';
+import { getMonthDateBounds } from '../utils/date';
+import { isValidMealInput, parseMealQuantity } from '../utils/meals';
 
 interface MealLoggerProps {
   members: Member[];
@@ -87,16 +89,14 @@ export default function MealLogger({
   };
 
   const handleSave = () => {
-    const dataToSave = Object.keys(dailyMeals).map((memberId) => {
+    const memberIdsToSave = isManager ? Object.keys(dailyMeals) : [currentMemberId];
+    const dataToSave = memberIdsToSave.map((memberId) => {
       const rawLunch = dailyMeals[memberId]?.lunch ?? '1';
       const rawDinner = dailyMeals[memberId]?.dinner ?? '1';
-      const parsedLunch = parseFloat(rawLunch);
-      const parsedDinner = parseFloat(rawDinner);
-
       return {
         memberId,
-        lunch: isNaN(parsedLunch) ? 0 : parsedLunch,
-        dinner: isNaN(parsedDinner) ? 0 : parsedDinner,
+        lunch: parseMealQuantity(rawLunch),
+        dinner: parseMealQuantity(rawDinner),
       };
     });
     
@@ -117,6 +117,7 @@ export default function MealLogger({
   };
 
   const loggedDates = getLoggedDates();
+  const dateBounds = getMonthDateBounds(selectedMonth);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fadeIn" id="meal-logger-root">
@@ -137,8 +138,8 @@ export default function MealLogger({
               type="date"
               className="bg-transparent border-none text-[#141414] font-bold focus:outline-none cursor-pointer"
               value={logDate}
-              min={`${selectedMonth}-01`}
-              max={`${selectedMonth}-31`}
+              min={dateBounds.min}
+              max={dateBounds.max}
               onChange={(e) => setLogDate(e.target.value)}
             />
           </div>
@@ -185,7 +186,7 @@ export default function MealLogger({
         {/* Members Grid list */}
         <div className="space-y-3" id="meal-logger-members-list">
           {members.map((member) => {
-            const counts = dailyMeals[member.id] || { lunch: 1, dinner: 1 };
+            const counts = dailyMeals[member.id] || { lunch: '1', dinner: '1' };
             const isInactive = member.status === 'Inactive';
             const isSelf = member.id === currentMemberId;
             const isLocked = !isManager && !isSelf;
@@ -255,7 +256,7 @@ export default function MealLogger({
                                     : 'text-[#141414] hover:bg-white/70'
                                 } disabled:opacity-50`}
                               >
-                                {v === 0.5 ? '½' : v === 1.5 ? '1½' : v}
+                                {v === 0.5 ? '1/2' : v === 1.5 ? '11/2' : v}
                               </button>
                             );
                           })}
@@ -271,7 +272,9 @@ export default function MealLogger({
                             onChange={(e) => {
                               const val = e.target.value;
                               const cleaned = val.replace(/[^0-9.]/g, '');
-                              updateMealCount(member.id, 'lunch', cleaned);
+                              if (isValidMealInput(cleaned)) {
+                                updateMealCount(member.id, 'lunch', cleaned);
+                              }
                             }}
                             className="w-10 bg-transparent text-center text-xs font-bold font-mono focus:outline-none text-[#141414]"
                           />
@@ -298,7 +301,7 @@ export default function MealLogger({
                                     : 'text-[#141414] hover:bg-white/70'
                                 } disabled:opacity-50`}
                               >
-                                {v === 0.5 ? '½' : v === 1.5 ? '1½' : v}
+                                {v === 0.5 ? '1/2' : v === 1.5 ? '11/2' : v}
                               </button>
                             );
                           })}
@@ -314,7 +317,9 @@ export default function MealLogger({
                             onChange={(e) => {
                               const val = e.target.value;
                               const cleaned = val.replace(/[^0-9.]/g, '');
-                              updateMealCount(member.id, 'dinner', cleaned);
+                              if (isValidMealInput(cleaned)) {
+                                updateMealCount(member.id, 'dinner', cleaned);
+                              }
                             }}
                             className="w-10 bg-transparent text-center text-xs font-bold font-mono focus:outline-none text-[#141414]"
                           />
@@ -393,18 +398,16 @@ export default function MealLogger({
                     <button
                       onClick={() => setLogDate(date)}
                       title="Load and Edit Date"
+                      aria-label={`Load and edit meal logs for ${date}`}
                       className="p-1 hover:bg-[#141414] hover:text-[#E4E3E0] text-[#141414] border border-transparent hover:border-[#141414] transition-all cursor-pointer"
                     >
                       <Edit2 size={13} />
                     </button>
                     {isManager && (
                       <button
-                        onClick={() => {
-                          if (confirm(`Are you sure you want to delete meal logs for ${date}?`)) {
-                            onDeleteDateLogs(date);
-                          }
-                        }}
                         title="Delete Entry"
+                        aria-label={`Delete meal logs for ${date}`}
+                        onClick={() => onDeleteDateLogs(date)}
                         className="p-1 hover:bg-rose-600 hover:text-white text-rose-600 border border-transparent hover:border-[#141414] transition-all cursor-pointer"
                       >
                         <Trash2 size={13} />

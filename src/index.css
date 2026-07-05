@@ -39,19 +39,11 @@ body {
 }
 
 .tech-row-hover {
-  transition: all 0.1s ease;
+  transition: background-color 0.1s ease, border-color 0.1s ease;
 }
 
 .tech-row-hover:hover {
-  background-color: #141414 !important;
-  color: #E4E3E0 !important;
-}
-
-.tech-row-hover:hover p,
-.tech-row-hover:hover span,
-.tech-row-hover:hover td,
-.tech-row-hover:hover div {
-  color: inherit !important;
+  background-color: #F0EFEC !important;
 }
 
 @keyframes fadeIn {

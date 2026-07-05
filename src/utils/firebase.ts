@@ -226,16 +226,25 @@ export async function deleteMemberFromFirestore(id: string) {
   }
 }
 
-export async function saveMealsToFirestore(date: string, meals: MealLog[], allMealLogs: MealLog[]) {
+export async function saveMealsToFirestore(date: string, meals: MealLog[], allMealLogs: MealLog[], replaceFullDate = true) {
   try {
     // Overwrite existing ones for that date: delete those that aren't in the new list, set the new ones
     const existingOnDate = allMealLogs.filter(log => log.date === date);
     const newMealIds = new Set(meals.map(m => m.id));
 
     // Delete removed ones
-    for (const log of existingOnDate) {
-      if (!newMealIds.has(log.id)) {
-        await deleteDoc(doc(db, MEAL_LOGS_COLL, log.id));
+    if (replaceFullDate) {
+      for (const log of existingOnDate) {
+        if (!newMealIds.has(log.id)) {
+          await deleteDoc(doc(db, MEAL_LOGS_COLL, log.id));
+        }
+      }
+    } else {
+      const memberIds = new Set(meals.map(m => m.memberId));
+      for (const log of existingOnDate) {
+        if (memberIds.has(log.memberId) && !newMealIds.has(log.id)) {
+          await deleteDoc(doc(db, MEAL_LOGS_COLL, log.id));
+        }
       }
     }
 

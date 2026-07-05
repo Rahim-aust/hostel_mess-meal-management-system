@@ -3,9 +3,7 @@ import { Member, MealLog, BazarExpense, Utility, Deposit } from './types';
 import {
   loadLocalState,
   saveLocalState,
-  calculateMonthlySummary,
-  getSeedData,
-  DEFAULT_MEMBERS
+  calculateMonthlySummary
 } from './utils/dataStore';
 import {
   seedFirestoreIfEmpty,
@@ -27,6 +25,7 @@ import MealLogger from './components/MealLogger';
 import ExpenseTracker from './components/ExpenseTracker';
 import DepositManager from './components/DepositManager';
 import MemberManager from './components/MemberManager';
+import { validateBackup } from './utils/backup';
 
 import {
   Activity,
@@ -40,7 +39,8 @@ import {
   Upload,
   RefreshCw,
   PlusCircle,
-  HelpCircle
+  LogIn,
+  LogOut
 } from 'lucide-react';
 
 export default function App() {
@@ -49,34 +49,67 @@ export default function App() {
 
   // Cloud syncing state
   const [loading, setLoading] = useState(true);
-
-  // Active identity states
-  const [currentMemberId, setCurrentMemberId] = useState(() => {
-    return localStorage.getItem('mess_current_member_id') || '';
+  const [loginEmail, setLoginEmail] = useState(() => {
+    return localStorage.getItem('mess_login_email') || '';
   });
+  const [loginEmailInput, setLoginEmailInput] = useState('');
+  const [dialogInput, setDialogInput] = useState('');
+  const [dialog, setDialog] = useState<null | {
+    kind: 'notice' | 'confirm' | 'prompt';
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    onConfirm?: (value: string) => void | Promise<void>;
+  }>(null);
+
+  const openNotice = (title: string, message: string) => {
+    setDialog({ kind: 'notice', title, message, confirmLabel: 'OK' });
+  };
+
+  const openConfirm = (title: string, message: string, onConfirm: () => void | Promise<void>, confirmLabel = 'Confirm') => {
+    setDialog({ kind: 'confirm', title, message, confirmLabel, onConfirm: () => onConfirm() });
+  };
+
+  const openPrompt = (title: string, message: string, initialValue: string, onConfirm: (value: string) => void | Promise<void>) => {
+    setDialogInput(initialValue);
+    setDialog({ kind: 'prompt', title, message, confirmLabel: 'Add Cycle', onConfirm });
+  };
+
+  const closeDialog = () => {
+    setDialog(null);
+    setDialogInput('');
+  };
+
+  const confirmDialog = async () => {
+    if (!dialog) return;
+    await dialog.onConfirm?.(dialog.kind === 'prompt' ? dialogInput : '');
+    closeDialog();
+  };
 
   const currentMember = useMemo(() => {
-    return state.members.find((m: { id: string; }) => m.id === currentMemberId);
-  }, [state.members, currentMemberId]);
+    const email = loginEmail.trim().toLowerCase();
+    if (!email) return undefined;
+    return state.members.find((m: { email: string; }) => m.email.toLowerCase() === email);
+  }, [state.members, loginEmail]);
+
+  const currentMemberId = currentMember?.id || '';
 
   const isManager = useMemo(() => {
     return currentMember?.role === 'Manager';
   }, [currentMember]);
 
-  // Synchronize currentMemberId once members load or are updated
-  useEffect(() => {
-    if (state.members.length > 0) {
-      const exists = state.members.some((m: { id: string; }) => m.id === currentMemberId);
-      if (!exists) {
-        // Find first manager or member
-        const mgr = state.members.find((m: { role: string; }) => m.role === 'Manager') || state.members[0];
-        if (mgr) {
-          setCurrentMemberId(mgr.id);
-          localStorage.setItem('mess_current_member_id', mgr.id);
-        }
-      }
-    }
-  }, [state.members, currentMemberId]);
+  const handleEmailLogin = (event: React.FormEvent) => {
+    event.preventDefault();
+    const normalizedEmail = loginEmailInput.trim().toLowerCase();
+    setLoginEmail(normalizedEmail);
+    localStorage.setItem('mess_login_email', normalizedEmail);
+  };
+
+  const handleEmailLogout = () => {
+    setLoginEmail('');
+    setLoginEmailInput('');
+    localStorage.removeItem('mess_login_email');
+  };
 
   // Sync to/from Firestore on mount
   useEffect(() => {
@@ -163,32 +196,42 @@ export default function App() {
   };
 
   const handleAddNewMonth = () => {
-    const monthPrompt = prompt('Enter billing month in YYYY-MM format (e.g. 2026-08):');
-    if (!monthPrompt) return;
-    const regex = /^\d{4}-(0[1-9]|1[0-2])$/;
-    if (!regex.test(monthPrompt)) {
-      alert('Invalid month format. Please use YYYY-MM format.');
-      return;
-    }
-    setSelectedMonth(monthPrompt);
+    openPrompt('New Billing Cycle', 'Enter a billing month in YYYY-MM format, for example 2026-08.', selectedMonth, (monthPrompt) => {
+      const normalizedMonth = monthPrompt.trim();
+      const regex = /^\d{4}-(0[1-9]|1[0-2])$/;
+      if (!regex.test(normalizedMonth)) {
+        openNotice('Invalid Month', 'Please use YYYY-MM format, for example 2026-08.');
+        return;
+      }
+      setSelectedMonth(normalizedMonth);
+    });
   };
 
   // --- ACTIONS HANDLERS ---
 
   // Meal logs saving
   const handleSaveMeals = async (date: string, meals: { memberId: string; lunch: number; dinner: number }[]) => {
-    const newLogs: MealLog[] = meals.map((m, i) => ({
-      id: `ml-${date}-${m.memberId}-${i}`,
+    const allowedMeals = isManager
+      ? meals
+      : meals.filter((meal) => meal.memberId === currentMemberId);
+
+    const newLogs: MealLog[] = allowedMeals.map((m) => ({
+      id: `ml-${date}-${m.memberId}`,
       date,
       memberId: m.memberId,
       lunch: m.lunch,
       dinner: m.dinner,
     }));
-    await saveMealsToFirestore(date, newLogs, state.mealLogs);
+    await saveMealsToFirestore(date, newLogs, state.mealLogs, isManager);
   };
 
   const handleDeleteDateLogs = async (date: string) => {
-    await deleteMealsForDateFromFirestore(date, state.mealLogs);
+    openConfirm(
+      'Delete Meal Logs',
+      `Delete all meal logs for ${date}?`,
+      async () => deleteMealsForDateFromFirestore(date, state.mealLogs),
+      'Delete'
+    );
   };
 
   // Bazar expense management
@@ -201,7 +244,12 @@ export default function App() {
   };
 
   const handleDeleteBazarExpense = async (id: string) => {
-    await deleteBazarExpenseFromFirestore(id);
+    openConfirm(
+      'Delete Bazar Cost',
+      'Delete this grocery expense from the cycle?',
+      async () => deleteBazarExpenseFromFirestore(id),
+      'Delete'
+    );
   };
 
   // Utilities settings saving
@@ -219,7 +267,13 @@ export default function App() {
   };
 
   const handleDeleteDeposit = async (id: string) => {
-    await deleteDepositFromFirestore(id);
+    const deposit = state.deposits.find((d: Deposit) => d.id === id);
+    openConfirm(
+      'Delete Deposit',
+      `Delete payment record of Tk ${deposit?.amount || 0}?`,
+      async () => deleteDepositFromFirestore(id),
+      'Delete'
+    );
   };
 
   // Member profiles management
@@ -228,10 +282,34 @@ export default function App() {
       ...member,
       id: `m-${Date.now()}`,
     };
+    if (newMember.role === 'Manager') {
+      const otherManagers = state.members.filter((m: { role: string; }) => m.role === 'Manager');
+      for (const m of otherManagers) {
+        await saveMemberToFirestore({ ...m, role: 'Member' });
+      }
+    }
     await saveMemberToFirestore(newMember);
   };
 
   const handleUpdateMember = async (updatedMember: Member) => {
+    const existingMember = state.members.find((m: { id: string; }) => m.id === updatedMember.id);
+    const managerCount = state.members.filter((m: { role: string; }) => m.role === 'Manager').length;
+    if (
+      existingMember?.id === currentMemberId &&
+      existingMember.role === 'Manager' &&
+      updatedMember.role !== 'Manager' &&
+      managerCount <= 1
+    ) {
+      openNotice('Manager Required', 'You cannot demote yourself until another manager is available.');
+      return;
+    }
+
+    if (updatedMember.id === currentMemberId && updatedMember.email.trim().toLowerCase() !== loginEmail.trim().toLowerCase()) {
+      const normalizedEmail = updatedMember.email.trim().toLowerCase();
+      setLoginEmail(normalizedEmail);
+      localStorage.setItem('mess_login_email', normalizedEmail);
+    }
+
     if (updatedMember.role === 'Manager') {
       // Find other managers and demote them to Member
       const otherManagers = state.members.filter((m: { role: string; id: string; }) => m.role === 'Manager' && m.id !== updatedMember.id);
@@ -243,14 +321,23 @@ export default function App() {
   };
 
   const handleDeleteMember = async (id: string) => {
-    await deleteMemberFromFirestore(id);
+    const member = state.members.find((m: Member) => m.id === id);
+    openConfirm(
+      'Remove Member',
+      `Remove ${member?.name || 'this member'} permanently from the registry?`,
+      async () => deleteMemberFromFirestore(id),
+      'Remove'
+    );
   };
 
   // Reset to demo seed data
   const handleResetToDemo = async () => {
-    if (confirm('This will restore Rahim, Shuvo, Robi and other demo calculations. Current custom edits will be replaced. Continue?')) {
-      await resetFirestoreToDemo();
-    }
+    openConfirm(
+      'Reset Demo Data',
+      'This will restore demo calculations and replace current custom edits.',
+      resetFirestoreToDemo,
+      'Reset'
+    );
   };
 
   // Backup data as local JSON download
@@ -273,14 +360,16 @@ export default function App() {
     reader.onload = async (event) => {
       try {
         const parsed = JSON.parse(event.target?.result as string);
-        if (parsed.members && parsed.mealLogs && parsed.bazarExpenses && parsed.utilities && parsed.deposits) {
-          await uploadBackupToFirestore(parsed);
-          alert('Database restored successfully!');
-        } else {
-          alert('Invalid backup file format. Missing required tables.');
+        const validation = validateBackup(parsed);
+        if (!validation.valid || !validation.backup) {
+          openNotice('Invalid Backup File', validation.errors.slice(0, 8).join('\n'));
+          return;
         }
+
+        await uploadBackupToFirestore(validation.backup);
+        openNotice('Restore Complete', 'Database restored successfully.');
       } catch (err) {
-        alert('Failed to parse backup file.');
+        openNotice('Restore Failed', 'Failed to parse backup file.');
       }
     };
     reader.readAsText(file);
@@ -309,6 +398,91 @@ export default function App() {
     return state.members.find((m: { role: string; }) => m.role === 'Manager') || state.members[0];
   }, [state.members]);
 
+  const mealLogsCountByMember = useMemo(() => {
+    return state.mealLogs.reduce((counts: Record<string, number>, log: MealLog) => {
+      counts[log.memberId] = (counts[log.memberId] || 0) + 1;
+      return counts;
+    }, {});
+  }, [state.mealLogs]);
+
+  const bazarCountByMember = useMemo(() => {
+    return state.bazarExpenses.reduce((counts: Record<string, number>, expense: BazarExpense) => {
+      counts[expense.buyerId] = (counts[expense.buyerId] || 0) + 1;
+      return counts;
+    }, {});
+  }, [state.bazarExpenses]);
+
+  const depositCountByMember = useMemo(() => {
+    return state.deposits.reduce((counts: Record<string, number>, deposit: Deposit) => {
+      counts[deposit.memberId] = (counts[deposit.memberId] || 0) + 1;
+      return counts;
+    }, {});
+  }, [state.deposits]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#E4E3E0] text-[#141414] flex items-center justify-center p-6 font-sans">
+        <div className="tech-box bg-white p-6 max-w-sm w-full text-center">
+          <p className="text-xs font-mono font-bold uppercase tracking-widest">Loading mess workspace...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!loginEmail) {
+    return (
+      <div className="min-h-screen bg-[#E4E3E0] text-[#141414] flex items-center justify-center p-6 font-sans">
+        <div className="tech-box bg-white p-6 max-w-md w-full space-y-4">
+          <div>
+            <h1 className="text-2xl font-black uppercase tracking-tight leading-none">Bachelor Mess MS</h1>
+            <p className="text-xs font-mono text-[#141414]/65 mt-2 uppercase">
+              Sign in with the email assigned by the mess manager.
+            </p>
+          </div>
+          <form onSubmit={handleEmailLogin} className="space-y-3">
+            <input
+              type="email"
+              required
+              placeholder="member@email.com"
+              value={loginEmailInput}
+              onChange={(e) => setLoginEmailInput(e.target.value)}
+              className="w-full bg-[#F0EFEC] border-2 border-[#141414] px-3 py-2 font-bold text-[#141414] focus:outline-none text-sm"
+            />
+            <button
+              type="submit"
+              className="w-full flex items-center justify-center space-x-2 px-5 py-3 bg-[#141414] hover:bg-[#333] text-white text-xs font-bold uppercase tracking-widest cursor-pointer"
+            >
+              <LogIn size={14} />
+              <span>Continue with Email</span>
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentMember) {
+    return (
+      <div className="min-h-screen bg-[#E4E3E0] text-[#141414] flex items-center justify-center p-6 font-sans">
+        <div className="tech-box bg-white p-6 max-w-md w-full space-y-4">
+          <div>
+            <h1 className="text-xl font-black uppercase tracking-tight">Access Not Registered</h1>
+            <p className="text-xs font-mono text-[#141414]/65 mt-2 uppercase">
+              {loginEmail} is not in the mess member registry. Ask the manager to add or edit this email.
+            </p>
+          </div>
+          <button
+            onClick={handleEmailLogout}
+            className="flex items-center justify-center space-x-2 px-5 py-2.5 bg-[#141414] hover:bg-[#333] text-white text-xs font-bold uppercase tracking-widest cursor-pointer"
+          >
+            <LogOut size={14} />
+            <span>Sign out</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#E4E3E0] text-[#141414] flex flex-col lg:flex-row font-sans" id="hostel-mess-app">
 
@@ -331,22 +505,26 @@ export default function App() {
             </div>
 
             {/* Quick backup controls inside Sidebar */}
-            <div className="flex items-center space-x-1 mt-2 lg:mt-4" id="backup-actions">
+            <div className="flex items-center gap-1 mt-2 lg:mt-4" id="backup-actions">
               <button
                 onClick={handleDownloadBackup}
                 title="Export JSON Database"
-                className="p-1.5 hover:bg-[#141414] hover:text-[#E4E3E0] border border-[#141414] text-xs font-bold font-mono transition-all cursor-pointer"
+                aria-label="Export JSON database"
+                className="inline-flex items-center gap-1 px-2 py-1.5 hover:bg-[#141414] hover:text-[#E4E3E0] border border-[#141414] text-[10px] font-bold font-mono transition-all cursor-pointer"
               >
                 <Download size={13} />
+                <span className="hidden sm:inline lg:hidden xl:inline">Export</span>
               </button>
 
               {isManager && (
                 <>
                   <label
                     title="Import JSON Database"
-                    className="p-1.5 hover:bg-[#141414] hover:text-[#E4E3E0] border border-[#141414] text-xs font-bold font-mono transition-all cursor-pointer flex items-center"
+                    aria-label="Import JSON database"
+                    className="inline-flex items-center gap-1 px-2 py-1.5 hover:bg-[#141414] hover:text-[#E4E3E0] border border-[#141414] text-[10px] font-bold font-mono transition-all cursor-pointer"
                   >
                     <Upload size={13} />
+                    <span className="hidden sm:inline lg:hidden xl:inline">Import</span>
                     <input
                       type="file"
                       accept=".json"
@@ -358,57 +536,56 @@ export default function App() {
                   <button
                     onClick={handleResetToDemo}
                     title="Reset to Demo Data"
-                    className="p-1.5 hover:bg-amber-500 hover:text-white border border-[#141414] text-xs font-bold font-mono transition-all cursor-pointer"
+                    aria-label="Reset to demo data"
+                    className="inline-flex items-center gap-1 px-2 py-1.5 hover:bg-amber-500 hover:text-white border border-[#141414] text-[10px] font-bold font-mono transition-all cursor-pointer"
                   >
                     <RefreshCw size={13} />
+                    <span className="hidden sm:inline lg:hidden xl:inline">Reset</span>
                   </button>
                 </>
               )}
             </div>
           </div>
 
-          {/* Active Identity selector */}
+          {/* Authenticated identity */}
           <div className="mt-6 mb-4 p-3 bg-white border-2 border-[#141414] font-mono shadow-[3px_3px_0px_0px_rgba(20,20,20,1)]" id="active-user-identity-card">
             <span className="text-[9px] font-black uppercase tracking-wider text-[#141414]/70 block mb-1">
-              Logged in as:
+              Signed in as:
             </span>
-            <select
-              className="w-full bg-[#F0EFEC] border border-[#141414] text-xs font-bold py-1 px-1.5 focus:outline-none cursor-pointer uppercase text-[#141414]"
-              value={currentMemberId}
-              onChange={(e) => {
-                setCurrentMemberId(e.target.value);
-                localStorage.setItem('mess_current_member_id', e.target.value);
-              }}
+            <p className="text-xs font-bold uppercase text-[#141414]">{currentMember.name} ({currentMember.role})</p>
+            <p className="text-[9px] text-[#141414]/60 break-all mt-1">{loginEmail}</p>
+            <button
+              onClick={handleEmailLogout}
+              className="mt-2 flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-[#141414]/70 hover:text-[#141414] cursor-pointer"
             >
-              {state.members.map((m: Member) => (
-                <option key={m.id} value={m.id}>
-                  {m.name.toUpperCase()} ({m.role})
-                </option>
-              ))}
-            </select>
+              <LogOut size={11} />
+              <span>Sign out</span>
+            </button>
           </div>
 
           {/* Tab Navigation Menu */}
-          <nav className="flex flex-row lg:flex-col overflow-x-auto lg:overflow-x-visible gap-2 pb-3 lg:pb-0 border-b lg:border-b-0 border-[#141414]/30" id="sidebar-navigation">
+          <nav className="grid grid-cols-5 lg:flex lg:flex-col gap-1.5 lg:gap-2 pb-3 lg:pb-0 border-b lg:border-b-0 border-[#141414]/30" id="sidebar-navigation">
             {[
-              { id: 'dashboard', label: 'DASHBOARD', icon: <Activity size={14} /> },
-              { id: 'meals', label: 'MEAL LOGS', icon: <Calendar size={14} /> },
-              { id: 'expenses', label: 'BAZAR & BILLS', icon: <ShoppingBag size={14} /> },
-              { id: 'deposits', label: 'DEPOSITS', icon: <Wallet size={14} /> },
-              { id: 'members', label: 'REGISTRY', icon: <Users size={14} /> },
+              { id: 'dashboard', label: 'Dashboard', shortLabel: 'Home', icon: <Activity size={14} /> },
+              { id: 'meals', label: 'Meals', shortLabel: 'Meals', icon: <Calendar size={14} /> },
+              { id: 'expenses', label: 'Bazar & Bills', shortLabel: 'Bills', icon: <ShoppingBag size={14} /> },
+              { id: 'deposits', label: 'Deposits', shortLabel: 'Cash', icon: <Wallet size={14} /> },
+              { id: 'members', label: 'Members', shortLabel: 'People', icon: <Users size={14} /> },
             ].map((tab) => {
               const isActive = activeTab === tab.id;
               return (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex items-center space-x-2 text-xs font-bold uppercase tracking-wide py-2 px-3 border-b-2 lg:border-b-0 lg:border-l-4 transition-all shrink-0 cursor-pointer text-left ${isActive
+                  aria-label={tab.label}
+                  className={`flex flex-col lg:flex-row items-center justify-center lg:justify-start gap-1 lg:gap-2 text-[10px] lg:text-xs font-bold uppercase py-2 px-1.5 lg:px-3 border-b-2 lg:border-b-0 lg:border-l-4 transition-all cursor-pointer text-center lg:text-left min-h-[54px] lg:min-h-0 ${isActive
                       ? 'border-[#141414] text-[#141414] font-black'
                       : 'border-transparent text-[#141414]/65 hover:text-[#141414] hover:border-[#141414]/40'
                     }`}
                 >
                   {tab.icon}
-                  <span>{tab.label}</span>
+                  <span className="lg:hidden">{tab.shortLabel}</span>
+                  <span className="hidden lg:inline">{tab.label}</span>
                 </button>
               );
             })}
@@ -421,7 +598,7 @@ export default function App() {
           <p className="text-xs font-bold uppercase tracking-tight text-[#141414]">
             {activeManager ? activeManager.name : 'NAZMUL HOSSAIN'}
           </p>
-          <p className="text-[9px] font-mono text-[#141414]/55 mt-1">HOSTEL BILLS • ACTIVE</p>
+          <p className="text-[9px] font-mono text-[#141414]/55 mt-1">HOSTEL BILLS - ACTIVE</p>
         </div>
       </aside>
 
@@ -435,7 +612,7 @@ export default function App() {
           <div className="border-r border-b md:border-b-0 border-[#141414] p-4 flex flex-col justify-between" id="stat-meal-rate">
             <p className="tech-header-serif">Current Meal Rate</p>
             <p className="text-2xl lg:text-3xl font-mono font-black mt-2 text-[#141414]">
-              ৳{monthlySummary.mealRate.toFixed(2)}
+              Tk {monthlySummary.mealRate.toFixed(2)}
             </p>
           </div>
 
@@ -443,7 +620,7 @@ export default function App() {
           <div className="border-b md:border-b-0 md:border-r border-[#141414] p-4 flex flex-col justify-between" id="stat-bazar-cost">
             <p className="tech-header-serif">Total Bazar Cost</p>
             <p className="text-2xl lg:text-3xl font-mono font-black mt-2 text-[#141414]">
-              ৳{monthlySummary.totalBazarExpense.toLocaleString()}
+              Tk {monthlySummary.totalBazarExpense.toLocaleString()}
             </p>
           </div>
 
@@ -459,7 +636,7 @@ export default function App() {
           <div className="bg-[#F27D26] text-white p-4 flex flex-col justify-between" id="stat-utilities">
             <p className="tech-header-serif text-white opacity-95">Total Utilities</p>
             <p className="text-2xl lg:text-3xl font-mono font-black mt-2">
-              ৳{monthlySummary.totalUtilities.toLocaleString()}
+              Tk {monthlySummary.totalUtilities.toLocaleString()}
             </p>
           </div>
         </header>
@@ -479,6 +656,7 @@ export default function App() {
               <button
                 onClick={handlePrevMonth}
                 title="Previous Month"
+                aria-label="Previous month"
                 className="p-1 hover:bg-[#141414] hover:text-[#E4E3E0] text-[#141414] transition-all cursor-pointer"
               >
                 <ChevronLeft size={16} />
@@ -491,6 +669,7 @@ export default function App() {
               <button
                 onClick={handleNextMonth}
                 title="Next Month"
+                aria-label="Next month"
                 className="p-1 hover:bg-[#141414] hover:text-[#E4E3E0] text-[#141414] transition-all cursor-pointer"
               >
                 <ChevronRight size={16} />
@@ -559,9 +738,13 @@ export default function App() {
             {activeTab === 'members' && (
               <MemberManager
                 members={state.members}
+                mealLogsCountByMember={mealLogsCountByMember}
+                bazarCountByMember={bazarCountByMember}
+                depositCountByMember={depositCountByMember}
                 onAddMember={handleAddMember}
                 onUpdateMember={handleUpdateMember}
                 onDeleteMember={handleDeleteMember}
+                currentMemberId={currentMemberId}
                 isManager={isManager}
               />
             )}
@@ -572,11 +755,57 @@ export default function App() {
         <footer className="bg-white border-t-2 border-[#141414] p-4 text-center text-[10px] font-mono tracking-tight text-[#141414]/70" id="main-footer">
           <div className="max-w-6xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-2">
             <span className="uppercase font-bold">BACHELOR MESS MEAL MANAGEMENT SYSTEM</span>
-            <span>DATA MATRIX SYNC CONFORMING • © 2026 HOSTEL MANAGEMENT INC.</span>
+            <span>DATA MATRIX SYNC CONFORMING - (c) 2026 HOSTEL MANAGEMENT INC.</span>
           </div>
         </footer>
 
       </main>
+
+      {dialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4" role="dialog" aria-modal="true" aria-labelledby="app-dialog-title">
+          <div className="tech-box bg-white w-full max-w-md p-5 shadow-[6px_6px_0px_0px_rgba(20,20,20,0.85)]">
+            <div className="space-y-2">
+              <h2 id="app-dialog-title" className="text-base font-black uppercase tracking-tight text-[#141414]">
+                {dialog.title}
+              </h2>
+              <p className="text-xs leading-relaxed text-[#141414]/75 whitespace-pre-line">
+                {dialog.message}
+              </p>
+            </div>
+
+            {dialog.kind === 'prompt' && (
+              <input
+                autoFocus
+                value={dialogInput}
+                onChange={(e) => setDialogInput(e.target.value)}
+                className="mt-4 w-full bg-[#F0EFEC] border-2 border-[#141414] px-3 py-2 text-sm font-bold font-mono text-[#141414] focus:outline-none"
+                placeholder="YYYY-MM"
+              />
+            )}
+
+            <div className="mt-5 flex justify-end gap-2">
+              {dialog.kind !== 'notice' && (
+                <button
+                  onClick={closeDialog}
+                  className="px-4 py-2 border border-[#141414] text-xs font-bold uppercase tracking-wider text-[#141414] hover:bg-[#F0EFEC] cursor-pointer"
+                >
+                  Cancel
+                </button>
+              )}
+              <button
+                onClick={confirmDialog}
+                className={`px-4 py-2 border border-[#141414] text-xs font-bold uppercase tracking-wider cursor-pointer ${
+                  dialog.confirmLabel === 'Delete' || dialog.confirmLabel === 'Reset' || dialog.confirmLabel === 'Remove'
+                    ? 'bg-rose-600 text-white hover:bg-rose-700'
+                    : 'bg-[#141414] text-white hover:bg-[#333]'
+                }`}
+              >
+                {dialog.confirmLabel || 'OK'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
