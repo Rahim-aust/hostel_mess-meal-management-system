@@ -25,7 +25,7 @@ export default function MemberManager({
   currentMemberId,
   isManager,
 }: MemberManagerProps) {
-  
+
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -116,7 +116,7 @@ export default function MemberManager({
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fadeIn" id="member-manager-root">
-      
+
       {/* Add Member Column */}
       <div className="lg:col-span-1" id="add-member-pane">
         {isManager ? (
@@ -133,7 +133,7 @@ export default function MemberManager({
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4 text-xs font-mono">
-              
+
               {/* Name Input */}
               <div className="space-y-1">
                 <label className="text-[#141414] font-bold text-[10px] uppercase block">Full Name</label>
@@ -236,15 +236,13 @@ export default function MemberManager({
               return (
                 <div
                   key={member.id}
-                  className={`p-3 border transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 ${
-                    isActive ? 'bg-[#F0EFEC]/20 border-[#141414]/40 hover:border-[#141414]' : 'bg-gray-100 border-dashed border-gray-400 opacity-60'
-                  }`}
+                  className={`p-3 border transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 ${isActive ? 'bg-[#F0EFEC]/20 border-[#141414]/40 hover:border-[#141414]' : 'bg-gray-100 border-dashed border-gray-400 opacity-60'
+                    }`}
                   id={`member-card-${member.id}`}
                 >
                   <div className="flex items-start space-x-3.5">
-                    <div className={`w-10 h-10 border-2 border-[#141414] flex items-center justify-center font-bold text-xs font-mono shadow-sm shrink-0 ${
-                      isActive ? 'bg-[#141414] text-[#E4E3E0]' : 'bg-gray-300 text-gray-500'
-                    }`}>
+                    <div className={`w-10 h-10 border-2 border-[#141414] flex items-center justify-center font-bold text-xs font-mono shadow-sm shrink-0 ${isActive ? 'bg-[#141414] text-[#E4E3E0]' : 'bg-gray-300 text-gray-500'
+                      }`}>
                       {member.name.substring(0, 2).toUpperCase()}
                     </div>
 
@@ -343,13 +341,27 @@ export default function MemberManager({
                         {/* Toggle Status Button */}
                         <button
                           onClick={() => toggleStatus(member)}
-                          className={`flex items-center space-x-1 px-2 py-1 text-[10px] font-mono font-bold uppercase border transition-all cursor-pointer ${
-                            isActive
-                              ? 'border-[#141414] text-[#141414] hover:bg-[#141414] hover:text-white'
-                              : 'border-[#141414]/40 text-[#141414]/60 hover:bg-[#141414]/10'
-                          }`}
-                          title={isActive ? "Set Inactive (Skips Utility Splits)" : "Set Active"}
-                          aria-label={isActive ? `Set ${member.name} inactive` : `Set ${member.name} active`}
+                          disabled={isThisMemberManager}
+                          className={`flex items-center space-x-1 px-2 py-1 text-[10px] font-mono font-bold uppercase border transition-all ${isThisMemberManager
+                              ? 'border-[#141414]/40 text-[#141414]/40 bg-[#F0EFEC] cursor-not-allowed'
+                              : isActive
+                                ? 'border-[#141414] text-[#141414] hover:bg-[#141414] hover:text-white cursor-pointer'
+                                : 'border-[#141414]/40 text-[#141414]/60 hover:bg-[#141414]/10 cursor-pointer'
+                            }`}
+                          title={
+                            isThisMemberManager
+                              ? 'Managers cannot be paused'
+                              : isActive
+                                ? 'Set Inactive (Skips Utility Splits)'
+                                : 'Set Active'
+                          }
+                          aria-label={
+                            isThisMemberManager
+                              ? `${member.name} is a manager and cannot be paused`
+                              : isActive
+                                ? `Set ${member.name} inactive`
+                                : `Set ${member.name} active`
+                          }
                         >
                           {isActive ? (
                             <>
@@ -370,11 +382,10 @@ export default function MemberManager({
                           disabled={blocksSelfDemotion}
                           title={blocksSelfDemotion ? 'Add or promote another manager before demoting yourself' : undefined}
                           aria-label={isThisMemberManager ? `Demote ${member.name} from manager` : `Promote ${member.name} to manager`}
-                          className={`px-2 py-1 text-[10px] font-mono font-bold uppercase border border-[#141414] transition-all ${
-                            blocksSelfDemotion
+                          className={`px-2 py-1 text-[10px] font-mono font-bold uppercase border border-[#141414] transition-all ${blocksSelfDemotion
                               ? 'text-[#141414]/40 cursor-not-allowed bg-[#F0EFEC]'
                               : 'text-[#141414] hover:bg-[#141414] hover:text-white cursor-pointer'
-                          }`}
+                            }`}
                         >
                           {isThisMemberManager ? 'Demote MGR' : 'Promote MGR'}
                         </button>
