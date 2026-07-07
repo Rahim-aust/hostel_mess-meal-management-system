@@ -8,11 +8,13 @@ The app is designed for mess systems where one or more managers maintain records
 
 - Real-time data sync with Firebase Firestore.
 - Simple email-based login using the email stored in the member registry.
+- Super Admin login for managing multiple mess branches.
 - Manager and member roles.
+- Multiple mess branches with branch switching for Super Admin.
 - Managers can add/edit members, phone numbers, emails, roles, and active status.
 - Managers can log meals, bazar costs, deposits, and utility bills.
 - Members can view records and update only their own meal entry.
-- Manual guest meal support, such as `5` lunch and `5.5` dinner.
+- Breakfast, lunch, and dinner meal logging with different validation rules.
 - Automatic meal rate, utility share, total cost, refund, and due calculation.
 - Backup export and validated backup restore.
 - Demo seed data when Firestore is empty.
@@ -139,6 +141,45 @@ rahim@mess.com
 ```
 
 Managers can edit member emails from the **Members** screen. After changing an email, that member should log in using the new email.
+
+## Super Admin Login
+
+Super Admin is not stored as a normal member, so members and managers do not see the Super Admin email in the member registry.
+
+Default Super Admin login:
+
+```text
+Email: superadmin@mess.com
+Password: 123456
+```
+
+On the login page, the password field appears only when the email is `superadmin@mess.com`.
+
+Super Admin can:
+
+- Switch between mess branches.
+- Add a new mess branch.
+- Manage members, meals, bazar, deposits, and utilities for the selected branch.
+- Change the Super Admin password from the sidebar.
+
+Note: the Super Admin password is currently stored in browser local storage for simple project/demo use. For production, move this to secure Firebase Authentication or a protected backend.
+
+## Meal Rules
+
+The app supports three meal slots:
+
+```text
+Breakfast: 0, 0.5, 1, or guest counts such as 2.5
+Lunch:     0, 1, 2, or any whole number for guests
+Dinner:    0, 1, 2, or any whole number for guests
+```
+
+Breakfast manual input allows `.5`, including guest counts such as `2.5`.
+
+Lunch and dinner manual input do not allow fractional values. For example:
+
+- Valid lunch/dinner: `0`, `1`, `2`, `5`, `10`
+- Invalid lunch/dinner: `0.5`, `1.5`, `5.5`
 
 ## Important Manager Rules
 

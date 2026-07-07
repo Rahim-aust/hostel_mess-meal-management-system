@@ -7,7 +7,7 @@ interface MemberManagerProps {
   mealLogsCountByMember: Record<string, number>;
   bazarCountByMember: Record<string, number>;
   depositCountByMember: Record<string, number>;
-  onAddMember: (member: Omit<Member, 'id'>) => void;
+  onAddMember: (member: Omit<Member, 'id' | 'branchId'>) => void;
   onUpdateMember: (member: Member) => void;
   onDeleteMember: (id: string) => void;
   currentMemberId: string;

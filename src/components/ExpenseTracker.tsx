@@ -8,9 +8,9 @@ interface ExpenseTrackerProps {
   bazarExpenses: BazarExpense[];
   utilities: Utility[];
   selectedMonth: string; // YYYY-MM
-  onAddBazarExpense: (expense: Omit<BazarExpense, 'id'>) => void;
+  onAddBazarExpense: (expense: Omit<BazarExpense, 'id' | 'branchId'>) => void;
   onDeleteBazarExpense: (id: string) => void;
-  onSaveUtilities: (utility: Utility) => void;
+  onSaveUtilities: (utility: Omit<Utility, 'branchId'>) => void;
   isManager: boolean;
 }
 
@@ -44,6 +44,7 @@ export default function ExpenseTracker({
   // Load utilities for selected month or initialize with defaults
   const activeUtility = utilities.find(u => u.month === selectedMonth) || {
     id: `ut-${selectedMonth}`,
+    branchId: '',
     month: selectedMonth,
     bua: 0,
     electricity: 0,
@@ -65,6 +66,7 @@ export default function ExpenseTracker({
   React.useEffect(() => {
     const updatedUtility = utilities.find(u => u.month === selectedMonth) || {
       id: `ut-${selectedMonth}`,
+      branchId: '',
       month: selectedMonth,
       bua: 0,
       electricity: 0,

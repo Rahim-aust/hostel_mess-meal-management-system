@@ -1,13 +1,16 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Member, MealLog, BazarExpense, Utility, Deposit } from './types';
+import { Member, MealLog, BazarExpense, Utility, Deposit, MessBranch } from './types';
 import {
   loadLocalState,
   saveLocalState,
-  calculateMonthlySummary
+  calculateMonthlySummary,
+  DEFAULT_BRANCH_ID,
+  normalizeState
 } from './utils/dataStore';
 import {
   seedFirestoreIfEmpty,
   subscribeToData,
+  saveBranchToFirestore,
   saveMemberToFirestore,
   deleteMemberFromFirestore,
   saveMealsToFirestore,
@@ -43,6 +46,9 @@ import {
   LogOut
 } from 'lucide-react';
 
+const SUPER_ADMIN_EMAIL = 'superadmin@mess.com';
+const DEFAULT_SUPER_ADMIN_PASSWORD = '123456';
+
 export default function App() {
   // Load initial data from localStorage (or defaults if empty)
   const [state, setState] = useState(() => loadLocalState());
@@ -53,6 +59,13 @@ export default function App() {
     return localStorage.getItem('mess_login_email') || '';
   });
   const [loginEmailInput, setLoginEmailInput] = useState('');
+  const [loginPasswordInput, setLoginPasswordInput] = useState('');
+  const [isSuperAdminSession, setIsSuperAdminSession] = useState(() => {
+    return localStorage.getItem('mess_super_admin_session') === 'true';
+  });
+  const [selectedBranchId, setSelectedBranchId] = useState(() => {
+    return localStorage.getItem('mess_selected_branch_id') || DEFAULT_BRANCH_ID;
+  });
   const [dialogInput, setDialogInput] = useState('');
   const [dialog, setDialog] = useState<null | {
     kind: 'notice' | 'confirm' | 'prompt';
@@ -87,29 +100,94 @@ export default function App() {
   };
 
   const currentMember = useMemo(() => {
+    if (isSuperAdminSession) return undefined;
     const email = loginEmail.trim().toLowerCase();
     if (!email) return undefined;
     return state.members.find((m: { email: string; }) => m.email.toLowerCase() === email);
-  }, [state.members, loginEmail]);
+  }, [state.members, loginEmail, isSuperAdminSession]);
 
   const currentMemberId = currentMember?.id || '';
+  const activeBranchId = isSuperAdminSession ? selectedBranchId : (currentMember?.branchId || selectedBranchId);
+  const activeBranch = state.branches.find((branch: { id: string; }) => branch.id === activeBranchId) || state.branches[0];
+  const branchMembers = state.members.filter((member: Member) => member.branchId === activeBranchId);
+  const branchMealLogs = state.mealLogs.filter((log: MealLog) => log.branchId === activeBranchId);
+  const branchBazarExpenses = state.bazarExpenses.filter((expense: BazarExpense) => expense.branchId === activeBranchId);
+  const branchUtilities = state.utilities.filter((utility: Utility) => utility.branchId === activeBranchId);
+  const branchDeposits = state.deposits.filter((deposit: Deposit) => deposit.branchId === activeBranchId);
 
   const isManager = useMemo(() => {
-    return currentMember?.role === 'Manager';
-  }, [currentMember]);
+    return isSuperAdminSession || currentMember?.role === 'Manager';
+  }, [currentMember, isSuperAdminSession]);
 
   const handleEmailLogin = (event: React.FormEvent) => {
     event.preventDefault();
     const normalizedEmail = loginEmailInput.trim().toLowerCase();
+    if (normalizedEmail === SUPER_ADMIN_EMAIL) {
+      const password = localStorage.getItem('mess_super_admin_password') || DEFAULT_SUPER_ADMIN_PASSWORD;
+      if (loginPasswordInput !== password) {
+        setDialog({ kind: 'notice', title: 'Login Failed', message: 'Invalid super admin password.', confirmLabel: 'OK' });
+        return;
+      }
+      setIsSuperAdminSession(true);
+      setLoginEmail(normalizedEmail);
+      localStorage.setItem('mess_super_admin_session', 'true');
+      localStorage.setItem('mess_login_email', normalizedEmail);
+      return;
+    }
+    setIsSuperAdminSession(false);
     setLoginEmail(normalizedEmail);
+    setLoginPasswordInput('');
+    localStorage.removeItem('mess_super_admin_session');
     localStorage.setItem('mess_login_email', normalizedEmail);
   };
 
   const handleEmailLogout = () => {
     setLoginEmail('');
     setLoginEmailInput('');
+    setLoginPasswordInput('');
+    setIsSuperAdminSession(false);
     localStorage.removeItem('mess_login_email');
+    localStorage.removeItem('mess_super_admin_session');
   };
+
+  const handleBranchChange = (branchId: string) => {
+    setSelectedBranchId(branchId);
+    localStorage.setItem('mess_selected_branch_id', branchId);
+  };
+
+  const handleChangeSuperAdminPassword = () => {
+    if (!isSuperAdminSession) return;
+    openPrompt('Change Super Admin Password', 'Enter a new password for Super Admin.', '', (newPassword) => {
+      const trimmedPassword = newPassword.trim();
+      if (trimmedPassword.length < 4) {
+        openNotice('Password Too Short', 'Use at least 4 characters.');
+        return;
+      }
+      localStorage.setItem('mess_super_admin_password', trimmedPassword);
+      openNotice('Password Updated', 'Super Admin password was changed on this device.');
+    });
+  };
+
+  const handleAddBranch = () => {
+    if (!isSuperAdminSession) return;
+    openPrompt('Add Mess Branch', 'Enter the new mess branch name.', '', async (branchName) => {
+      const name = branchName.trim();
+      if (!name) {
+        openNotice('Branch Name Required', 'Please enter a branch name.');
+        return;
+      }
+      const id = `branch-${Date.now()}`;
+      const branch: MessBranch = { id, name };
+      await saveBranchToFirestore(branch);
+      handleBranchChange(id);
+    });
+  };
+
+  useEffect(() => {
+    if (!isSuperAdminSession && currentMember?.branchId && selectedBranchId !== currentMember.branchId) {
+      handleBranchChange(currentMember.branchId);
+    }
+  }, [currentMember, isSuperAdminSession, selectedBranchId]);
 
   // Sync to/from Firestore on mount
   useEffect(() => {
@@ -118,8 +196,9 @@ export default function App() {
       try {
         await seedFirestoreIfEmpty();
         unsub = subscribeToData((newData) => {
-          setState(newData);
-          saveLocalState(newData);
+          const normalizedData = normalizeState(newData);
+          setState(normalizedData);
+          saveLocalState(normalizedData);
           setLoading(false);
         });
       } catch (err) {
@@ -155,16 +234,16 @@ export default function App() {
     months.add(prev.toISOString().substring(0, 7));
 
     // Gather from meal logs
-    state.mealLogs.forEach((log: { date: string; }) => months.add(log.date.substring(0, 7)));
+    branchMealLogs.forEach((log: { date: string; }) => months.add(log.date.substring(0, 7)));
     // Gather from expenses
-    state.bazarExpenses.forEach((exp: { date: string; }) => months.add(exp.date.substring(0, 7)));
+    branchBazarExpenses.forEach((exp: { date: string; }) => months.add(exp.date.substring(0, 7)));
     // Gather from utilities
-    state.utilities.forEach((ut: { month: string; }) => months.add(ut.month));
+    branchUtilities.forEach((ut: { month: string; }) => months.add(ut.month));
     // Gather from deposits
-    state.deposits.forEach((dep: { date: string; }) => months.add(dep.date.substring(0, 7)));
+    branchDeposits.forEach((dep: { date: string; }) => months.add(dep.date.substring(0, 7)));
 
     return Array.from(months).sort((a, b) => b.localeCompare(a)); // Newest first
-  }, [state]);
+  }, [branchMealLogs, branchBazarExpenses, branchUtilities, branchDeposits]);
 
   // Handle month shifting
   const handlePrevMonth = () => {
@@ -210,34 +289,37 @@ export default function App() {
   // --- ACTIONS HANDLERS ---
 
   // Meal logs saving
-  const handleSaveMeals = async (date: string, meals: { memberId: string; lunch: number; dinner: number }[]) => {
+  const handleSaveMeals = async (date: string, meals: { memberId: string; breakfast: number; lunch: number; dinner: number }[]) => {
     const allowedMeals = isManager
       ? meals
       : meals.filter((meal) => meal.memberId === currentMemberId);
 
     const newLogs: MealLog[] = allowedMeals.map((m) => ({
-      id: `ml-${date}-${m.memberId}`,
+      id: `ml-${activeBranchId}-${date}-${m.memberId}`,
+      branchId: activeBranchId,
       date,
       memberId: m.memberId,
+      breakfast: m.breakfast,
       lunch: m.lunch,
       dinner: m.dinner,
     }));
-    await saveMealsToFirestore(date, newLogs, state.mealLogs, isManager);
+    await saveMealsToFirestore(date, newLogs, branchMealLogs, isManager);
   };
 
   const handleDeleteDateLogs = async (date: string) => {
     openConfirm(
       'Delete Meal Logs',
       `Delete all meal logs for ${date}?`,
-      async () => deleteMealsForDateFromFirestore(date, state.mealLogs),
+      async () => deleteMealsForDateFromFirestore(date, branchMealLogs),
       'Delete'
     );
   };
 
   // Bazar expense management
-  const handleAddBazarExpense = async (expense: Omit<BazarExpense, 'id'>) => {
+  const handleAddBazarExpense = async (expense: Omit<BazarExpense, 'id' | 'branchId'>) => {
     const newExp: BazarExpense = {
       ...expense,
+      branchId: activeBranchId,
       id: `be-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
     };
     await saveBazarExpenseToFirestore(newExp);
@@ -253,14 +335,15 @@ export default function App() {
   };
 
   // Utilities settings saving
-  const handleSaveUtilities = async (utility: Utility) => {
-    await saveUtilityToFirestore(utility);
+  const handleSaveUtilities = async (utility: Omit<Utility, 'branchId'>) => {
+    await saveUtilityToFirestore({ ...utility, id: `ut-${activeBranchId}-${utility.month}`, branchId: activeBranchId });
   };
 
   // Deposit management
-  const handleAddDeposit = async (deposit: Omit<Deposit, 'id'>) => {
+  const handleAddDeposit = async (deposit: Omit<Deposit, 'id' | 'branchId'>) => {
     const newDep: Deposit = {
       ...deposit,
+      branchId: activeBranchId,
       id: `dp-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
     };
     await saveDepositToFirestore(newDep);
@@ -277,13 +360,14 @@ export default function App() {
   };
 
   // Member profiles management
-  const handleAddMember = async (member: Omit<Member, 'id'>) => {
+  const handleAddMember = async (member: Omit<Member, 'id' | 'branchId'>) => {
     const newMember: Member = {
       ...member,
+      branchId: activeBranchId,
       id: `m-${Date.now()}`,
     };
     if (newMember.role === 'Manager') {
-      const otherManagers = state.members.filter((m: { role: string; }) => m.role === 'Manager');
+      const otherManagers = branchMembers.filter((m: { role: string; }) => m.role === 'Manager');
       for (const m of otherManagers) {
         await saveMemberToFirestore({ ...m, role: 'Member' });
       }
@@ -293,7 +377,7 @@ export default function App() {
 
   const handleUpdateMember = async (updatedMember: Member) => {
     const existingMember = state.members.find((m: { id: string; }) => m.id === updatedMember.id);
-    const managerCount = state.members.filter((m: { role: string; }) => m.role === 'Manager').length;
+    const managerCount = branchMembers.filter((m: { role: string; }) => m.role === 'Manager').length;
     if (
       existingMember?.id === currentMemberId &&
       existingMember.role === 'Manager' &&
@@ -312,7 +396,7 @@ export default function App() {
 
     if (updatedMember.role === 'Manager') {
       // Find other managers and demote them to Member
-      const otherManagers = state.members.filter((m: { role: string; id: string; }) => m.role === 'Manager' && m.id !== updatedMember.id);
+      const otherManagers = branchMembers.filter((m: { role: string; id: string; }) => m.role === 'Manager' && m.id !== updatedMember.id);
       for (const m of otherManagers) {
         await saveMemberToFirestore({ ...m, role: 'Member' });
       }
@@ -321,7 +405,7 @@ export default function App() {
   };
 
   const handleDeleteMember = async (id: string) => {
-    const member = state.members.find((m: Member) => m.id === id);
+    const member = branchMembers.find((m: Member) => m.id === id);
     openConfirm(
       'Remove Member',
       `Remove ${member?.name || 'this member'} permanently from the registry?`,
@@ -378,14 +462,14 @@ export default function App() {
   // Dynamically calculate everything for the active month!
   const monthlySummary = useMemo(() => {
     return calculateMonthlySummary(
-      state.members,
-      state.mealLogs,
-      state.bazarExpenses,
-      state.utilities,
-      state.deposits,
+      branchMembers,
+      branchMealLogs,
+      branchBazarExpenses,
+      branchUtilities,
+      branchDeposits,
       selectedMonth
     );
-  }, [state, selectedMonth]);
+  }, [branchMembers, branchMealLogs, branchBazarExpenses, branchUtilities, branchDeposits, selectedMonth]);
 
   // Human friendly month title helper
   const getMonthTitle = (monthStr: string) => {
@@ -395,29 +479,29 @@ export default function App() {
   };
 
   const activeManager = useMemo(() => {
-    return state.members.find((m: { role: string; }) => m.role === 'Manager') || state.members[0];
-  }, [state.members]);
+    return branchMembers.find((m: { role: string; }) => m.role === 'Manager') || branchMembers[0];
+  }, [branchMembers]);
 
   const mealLogsCountByMember = useMemo(() => {
-    return state.mealLogs.reduce((counts: Record<string, number>, log: MealLog) => {
+    return branchMealLogs.reduce((counts: Record<string, number>, log: MealLog) => {
       counts[log.memberId] = (counts[log.memberId] || 0) + 1;
       return counts;
     }, {});
-  }, [state.mealLogs]);
+  }, [branchMealLogs]);
 
   const bazarCountByMember = useMemo(() => {
-    return state.bazarExpenses.reduce((counts: Record<string, number>, expense: BazarExpense) => {
+    return branchBazarExpenses.reduce((counts: Record<string, number>, expense: BazarExpense) => {
       counts[expense.buyerId] = (counts[expense.buyerId] || 0) + 1;
       return counts;
     }, {});
-  }, [state.bazarExpenses]);
+  }, [branchBazarExpenses]);
 
   const depositCountByMember = useMemo(() => {
-    return state.deposits.reduce((counts: Record<string, number>, deposit: Deposit) => {
+    return branchDeposits.reduce((counts: Record<string, number>, deposit: Deposit) => {
       counts[deposit.memberId] = (counts[deposit.memberId] || 0) + 1;
       return counts;
     }, {});
-  }, [state.deposits]);
+  }, [branchDeposits]);
 
   if (loading) {
     return (
@@ -448,6 +532,15 @@ export default function App() {
               onChange={(e) => setLoginEmailInput(e.target.value)}
               className="w-full bg-[#F0EFEC] border-2 border-[#141414] px-3 py-2 font-bold text-[#141414] focus:outline-none text-sm"
             />
+            {loginEmailInput.trim().toLowerCase() === SUPER_ADMIN_EMAIL && (
+              <input
+                type="password"
+                placeholder="Super admin password"
+                value={loginPasswordInput}
+                onChange={(e) => setLoginPasswordInput(e.target.value)}
+                className="w-full bg-[#F0EFEC] border-2 border-[#141414] px-3 py-2 font-bold text-[#141414] focus:outline-none text-sm"
+              />
+            )}
             <button
               type="submit"
               className="w-full flex items-center justify-center space-x-2 px-5 py-3 bg-[#141414] hover:bg-[#333] text-white text-xs font-bold uppercase tracking-widest cursor-pointer"
@@ -461,7 +554,7 @@ export default function App() {
     );
   }
 
-  if (!currentMember) {
+  if (!isSuperAdminSession && !currentMember) {
     return (
       <div className="min-h-screen bg-[#E4E3E0] text-[#141414] flex items-center justify-center p-6 font-sans">
         <div className="tech-box bg-white p-6 max-w-md w-full space-y-4">
@@ -552,8 +645,36 @@ export default function App() {
             <span className="text-[9px] font-black uppercase tracking-wider text-[#141414]/70 block mb-1">
               Signed in as:
             </span>
-            <p className="text-xs font-bold uppercase text-[#141414]">{currentMember.name} ({currentMember.role})</p>
+            <p className="text-xs font-bold uppercase text-[#141414]">
+              {isSuperAdminSession ? 'Super Admin' : `${currentMember.name} (${currentMember.role})`}
+            </p>
             <p className="text-[9px] text-[#141414]/60 break-all mt-1">{loginEmail}</p>
+            <p className="text-[9px] text-[#141414]/60 mt-1 uppercase">Branch: {activeBranch?.name || 'Branch'}</p>
+            {isSuperAdminSession && (
+              <div className="mt-2 space-y-2">
+                <select
+                  value={selectedBranchId}
+                  onChange={(e) => handleBranchChange(e.target.value)}
+                  className="w-full bg-[#F0EFEC] border border-[#141414] text-xs font-bold py-1 px-1.5 focus:outline-none cursor-pointer uppercase text-[#141414]"
+                >
+                  {state.branches.map((branch: { id: string; name: string; }) => (
+                    <option key={branch.id} value={branch.id}>{branch.name}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={handleChangeSuperAdminPassword}
+                  className="block text-[9px] font-bold uppercase tracking-wider text-[#141414]/70 hover:text-[#141414] cursor-pointer"
+                >
+                  Change password
+                </button>
+                <button
+                  onClick={handleAddBranch}
+                  className="block text-[9px] font-bold uppercase tracking-wider text-[#141414]/70 hover:text-[#141414] cursor-pointer"
+                >
+                  Add branch
+                </button>
+              </div>
+            )}
             <button
               onClick={handleEmailLogout}
               className="mt-2 flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-[#141414]/70 hover:text-[#141414] cursor-pointer"
@@ -694,15 +815,15 @@ export default function App() {
             {activeTab === 'dashboard' && (
               <Dashboard
                 summary={monthlySummary}
-                mealLogs={state.mealLogs}
-                members={state.members}
+                mealLogs={branchMealLogs}
+                members={branchMembers}
               />
             )}
 
             {activeTab === 'meals' && (
               <MealLogger
-                members={state.members}
-                mealLogs={state.mealLogs}
+                members={branchMembers}
+                mealLogs={branchMealLogs}
                 selectedMonth={selectedMonth}
                 onSaveMeals={handleSaveMeals}
                 onDeleteDateLogs={handleDeleteDateLogs}
@@ -713,9 +834,9 @@ export default function App() {
 
             {activeTab === 'expenses' && (
               <ExpenseTracker
-                members={state.members}
-                bazarExpenses={state.bazarExpenses}
-                utilities={state.utilities}
+                members={branchMembers}
+                bazarExpenses={branchBazarExpenses}
+                utilities={branchUtilities}
                 selectedMonth={selectedMonth}
                 onAddBazarExpense={handleAddBazarExpense}
                 onDeleteBazarExpense={handleDeleteBazarExpense}
@@ -726,8 +847,8 @@ export default function App() {
 
             {activeTab === 'deposits' && (
               <DepositManager
-                members={state.members}
-                deposits={state.deposits}
+                members={branchMembers}
+                deposits={branchDeposits}
                 selectedMonth={selectedMonth}
                 onAddDeposit={handleAddDeposit}
                 onDeleteDeposit={handleDeleteDeposit}
@@ -737,7 +858,7 @@ export default function App() {
 
             {activeTab === 'members' && (
               <MemberManager
-                members={state.members}
+                members={branchMembers}
                 mealLogsCountByMember={mealLogsCountByMember}
                 bazarCountByMember={bazarCountByMember}
                 depositCountByMember={depositCountByMember}

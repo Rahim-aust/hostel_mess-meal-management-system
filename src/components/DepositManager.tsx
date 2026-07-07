@@ -7,7 +7,7 @@ interface DepositManagerProps {
   members: Member[];
   deposits: Deposit[];
   selectedMonth: string; // YYYY-MM
-  onAddDeposit: (deposit: Omit<Deposit, 'id'>) => void;
+  onAddDeposit: (deposit: Omit<Deposit, 'id' | 'branchId'>) => void;
   onDeleteDeposit: (id: string) => void;
   isManager: boolean;
 }

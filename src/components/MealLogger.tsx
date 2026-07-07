@@ -2,13 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Member, MealLog } from '../types';
 import { Save, Trash2, Edit2, Check, AlertCircle } from 'lucide-react';
 import { getMonthDateBounds } from '../utils/date';
-import { isValidMealInput, parseMealQuantity } from '../utils/meals';
+import { isValidMealInput, parseMealQuantity, MealSlot } from '../utils/meals';
 
 interface MealLoggerProps {
   members: Member[];
   mealLogs: MealLog[];
   selectedMonth: string; // YYYY-MM
-  onSaveMeals: (date: string, meals: { memberId: string; lunch: number; dinner: number }[]) => void;
+  onSaveMeals: (date: string, meals: { memberId: string; breakfast: number; lunch: number; dinner: number }[]) => void;
   onDeleteDateLogs: (date: string) => void;
   currentMemberId: string;
   isManager: boolean;
@@ -36,17 +36,18 @@ export default function MealLogger({
   const [logDate, setLogDate] = useState(getInitialDate());
   const [successMsg, setSuccessMsg] = useState('');
 
-  // Daily values state: map of memberId -> { lunch: string; dinner: string }
-  const [dailyMeals, setDailyMeals] = useState<{ [memberId: string]: { lunch: string; dinner: string } }>({});
+  // Daily values state: map of memberId -> meal slot quantities as strings
+  const [dailyMeals, setDailyMeals] = useState<{ [memberId: string]: { breakfast: string; lunch: string; dinner: string } }>({});
 
   // When date or selectedMonth changes, load existing values if they exist
   useEffect(() => {
     const existingLogs = mealLogs.filter((log) => log.date === logDate);
-    const initialMeals: { [memberId: string]: { lunch: string; dinner: string } } = {};
+    const initialMeals: { [memberId: string]: { breakfast: string; lunch: string; dinner: string } } = {};
 
     members.forEach((member) => {
       const log = existingLogs.find((l) => l.memberId === member.id);
       initialMeals[member.id] = {
+        breakfast: log ? (log.breakfast || 0).toString() : '1',
         lunch: log ? log.lunch.toString() : '1', // default to 1 meal as string
         dinner: log ? log.dinner.toString() : '1', // default to 1 meal as string
       };
@@ -63,7 +64,7 @@ export default function MealLogger({
     }
   }, [selectedMonth]);
 
-  const updateMealCount = (memberId: string, type: 'lunch' | 'dinner', value: string) => {
+  const updateMealCount = (memberId: string, type: MealSlot, value: string) => {
     setDailyMeals((prev) => ({
       ...prev,
       [memberId]: {
@@ -73,12 +74,13 @@ export default function MealLogger({
     }));
   };
 
-  const setAllToValue = (type: 'lunch' | 'dinner' | 'all', value: number) => {
+  const setAllToValue = (type: MealSlot | 'all', value: number) => {
     setDailyMeals((prev) => {
       const updated = { ...prev };
       members.forEach((m) => {
         if (m.status === 'Active') {
           updated[m.id] = {
+            breakfast: type === 'breakfast' || type === 'all' ? Math.min(value, 1).toString() : updated[m.id]?.breakfast ?? '1',
             lunch: type === 'lunch' || type === 'all' ? value.toString() : updated[m.id]?.lunch ?? '1',
             dinner: type === 'dinner' || type === 'all' ? value.toString() : updated[m.id]?.dinner ?? '1',
           };
@@ -93,10 +95,12 @@ export default function MealLogger({
     const dataToSave = memberIdsToSave.map((memberId) => {
       const rawLunch = dailyMeals[memberId]?.lunch ?? '1';
       const rawDinner = dailyMeals[memberId]?.dinner ?? '1';
+      const rawBreakfast = dailyMeals[memberId]?.breakfast ?? '1';
       return {
         memberId,
-        lunch: parseMealQuantity(rawLunch),
-        dinner: parseMealQuantity(rawDinner),
+        breakfast: parseMealQuantity(rawBreakfast, 'breakfast'),
+        lunch: parseMealQuantity(rawLunch, 'lunch'),
+        dinner: parseMealQuantity(rawDinner, 'dinner'),
       };
     });
     
@@ -127,7 +131,7 @@ export default function MealLogger({
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-[#141414]/20 pb-4">
           <div>
             <h2 className="text-xl font-bold uppercase tracking-tight text-[#141414]">Log Daily Meals</h2>
-            <p className="text-xs font-mono text-[#141414]/60 mt-1">Record lunch and dinner consumption counts</p>
+            <p className="text-xs font-mono text-[#141414]/60 mt-1">Record breakfast, lunch, and dinner counts</p>
           </div>
           
           {/* Date Selector */}
@@ -155,6 +159,12 @@ export default function MealLogger({
                 className="px-2.5 py-1 bg-white hover:bg-[#141414] hover:text-[#E4E3E0] border border-[#141414] text-[10px] font-mono font-bold uppercase transition-all cursor-pointer"
               >
                 All to 1.0 (Full)
+              </button>
+              <button
+                onClick={() => setAllToValue('breakfast', 0)}
+                className="px-2.5 py-1 bg-white hover:bg-[#141414] hover:text-[#E4E3E0] border border-[#141414] text-[10px] font-mono font-bold uppercase transition-all cursor-pointer"
+              >
+                Breakfast Off
               </button>
               <button
                 onClick={() => setAllToValue('all', 0)}
@@ -186,7 +196,7 @@ export default function MealLogger({
         {/* Members Grid list */}
         <div className="space-y-3" id="meal-logger-members-list">
           {members.map((member) => {
-            const counts = dailyMeals[member.id] || { lunch: '1', dinner: '1' };
+            const counts = dailyMeals[member.id] || { breakfast: '1', lunch: '1', dinner: '1' };
             const isInactive = member.status === 'Inactive';
             const isSelf = member.id === currentMemberId;
             const isLocked = !isManager && !isSelf;
@@ -235,14 +245,57 @@ export default function MealLogger({
                     </div>
                   </div>
 
-                  {/* Right: Lunch & Dinner controls */}
+                  {/* Right: Breakfast, Lunch & Dinner controls */}
                   <div className="flex flex-wrap items-center gap-6">
+                    {/* Breakfast control */}
+                    <div className="space-y-1">
+                      <span className="tech-header-serif block text-[#141414] font-bold">Breakfast</span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex items-center border border-[#141414] bg-[#F0EFEC] p-0.5 font-mono">
+                          {[0, 0.5, 1].map((v) => {
+                            const isSelected = parseFloat(counts.breakfast) === v;
+                            return (
+                              <button
+                                key={v}
+                                type="button"
+                                disabled={isInactive || isLocked}
+                                onClick={() => updateMealCount(member.id, 'breakfast', v.toString())}
+                                className={`w-9 py-1 text-xs font-bold transition-all cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-[#141414] text-white font-black'
+                                    : 'text-[#141414] hover:bg-white/70'
+                                } disabled:opacity-50`}
+                              >
+                                {v === 0.5 ? '1/2' : v}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div className="flex items-center border-2 border-[#141414] bg-white px-2 py-0.5 space-x-1 font-mono text-xs shadow-[2px_2px_0px_0px_rgba(20,20,20,1)]">
+                          <span className="text-[10px] font-bold text-gray-500 uppercase">Qty:</span>
+                          <input
+                            type="text"
+                            placeholder="0"
+                            disabled={isInactive || isLocked}
+                            value={counts.breakfast}
+                            onChange={(e) => {
+                              const cleaned = e.target.value.replace(/[^0-9.]/g, '');
+                              if (isValidMealInput(cleaned, 'breakfast')) {
+                                updateMealCount(member.id, 'breakfast', cleaned);
+                              }
+                            }}
+                            className="w-10 bg-transparent text-center text-xs font-bold font-mono focus:outline-none text-[#141414]"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
                     {/* Lunch control */}
                     <div className="space-y-1">
                       <span className="tech-header-serif block text-[#141414] font-bold">Lunch</span>
                       <div className="flex flex-wrap items-center gap-2">
                         <div className="flex items-center border border-[#141414] bg-[#F0EFEC] p-0.5 font-mono">
-                          {[0, 0.5, 1, 1.5, 2].map((v) => {
+                          {[0, 1, 2].map((v) => {
                             const isSelected = parseFloat(counts.lunch) === v;
                             return (
                               <button
@@ -256,7 +309,7 @@ export default function MealLogger({
                                     : 'text-[#141414] hover:bg-white/70'
                                 } disabled:opacity-50`}
                               >
-                                {v === 0.5 ? '1/2' : v === 1.5 ? '11/2' : v}
+                                {v}
                               </button>
                             );
                           })}
@@ -272,7 +325,7 @@ export default function MealLogger({
                             onChange={(e) => {
                               const val = e.target.value;
                               const cleaned = val.replace(/[^0-9.]/g, '');
-                              if (isValidMealInput(cleaned)) {
+                              if (isValidMealInput(cleaned, 'lunch')) {
                                 updateMealCount(member.id, 'lunch', cleaned);
                               }
                             }}
@@ -287,7 +340,7 @@ export default function MealLogger({
                       <span className="tech-header-serif block text-[#141414] font-bold">Dinner</span>
                       <div className="flex flex-wrap items-center gap-2">
                         <div className="flex items-center border border-[#141414] bg-[#F0EFEC] p-0.5 font-mono">
-                          {[0, 0.5, 1, 1.5, 2].map((v) => {
+                          {[0, 1, 2].map((v) => {
                             const isSelected = parseFloat(counts.dinner) === v;
                             return (
                               <button
@@ -301,7 +354,7 @@ export default function MealLogger({
                                     : 'text-[#141414] hover:bg-white/70'
                                 } disabled:opacity-50`}
                               >
-                                {v === 0.5 ? '1/2' : v === 1.5 ? '11/2' : v}
+                                {v}
                               </button>
                             );
                           })}
@@ -317,7 +370,7 @@ export default function MealLogger({
                             onChange={(e) => {
                               const val = e.target.value;
                               const cleaned = val.replace(/[^0-9.]/g, '');
-                              if (isValidMealInput(cleaned)) {
+                              if (isValidMealInput(cleaned, 'dinner')) {
                                 updateMealCount(member.id, 'dinner', cleaned);
                               }
                             }}
@@ -372,6 +425,7 @@ export default function MealLogger({
           <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1" id="logged-dates-list">
             {loggedDates.map((date) => {
               const dayMeals = mealLogs.filter((log) => log.date === date);
+              const totalBreakfast = dayMeals.reduce((sum, m) => sum + (m.breakfast || 0), 0);
               const totalLunch = dayMeals.reduce((sum, m) => sum + m.lunch, 0);
               const totalDinner = dayMeals.reduce((sum, m) => sum + m.dinner, 0);
 
@@ -390,7 +444,7 @@ export default function MealLogger({
                       {date}
                     </span>
                     <span className="text-[10px] text-[#141414]/65">
-                      LUNCH: {totalLunch.toFixed(1)} | DINNER: {totalDinner.toFixed(1)}
+                      BREAKFAST: {totalBreakfast.toFixed(1)} | LUNCH: {totalLunch.toFixed(1)} | DINNER: {totalDinner.toFixed(1)}
                     </span>
                   </div>
 

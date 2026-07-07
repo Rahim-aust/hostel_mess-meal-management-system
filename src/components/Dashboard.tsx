@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { MonthlySummary, MealLog, Member } from '../types';
-import { ShieldAlert, CheckCircle, CalendarDays, Sun, Moon } from 'lucide-react';
+import { ShieldAlert, CheckCircle, CalendarDays, Coffee, Sun, Moon } from 'lucide-react';
 
 interface DashboardProps {
   summary: MonthlySummary;
@@ -41,6 +41,10 @@ export default function Dashboard({ summary, mealLogs, members }: DashboardProps
   const dayLogs = useMemo(() => {
     return mealLogs.filter((log) => log.date === selectedDate);
   }, [mealLogs, selectedDate]);
+
+  const totalBreakfast = useMemo(() => {
+    return dayLogs.reduce((sum, log) => sum + (log.breakfast || 0), 0);
+  }, [dayLogs]);
 
   const totalLunch = useMemo(() => {
     return dayLogs.reduce((sum, log) => sum + (log.lunch || 0), 0);
@@ -184,7 +188,17 @@ export default function Dashboard({ summary, mealLogs, members }: DashboardProps
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 mb-4" id="daily-totals">
+              <div className="grid grid-cols-3 gap-3 mb-4" id="daily-totals">
+                <div className="border border-[#141414] bg-[#F0EFEC]/40 p-3 flex flex-col justify-between relative overflow-hidden shadow-[2px_2px_0px_0px_rgba(20,20,20,0.15)]">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#141414]/70">Breakfast</span>
+                    <Coffee size={14} className="text-emerald-700" />
+                  </div>
+                  <p className="text-2xl font-mono font-black text-[#141414] mt-2">
+                    {totalBreakfast % 1 === 0 ? totalBreakfast : totalBreakfast.toFixed(1)}
+                  </p>
+                </div>
+
                 {/* Lunch Total Box */}
                 <div className="border border-[#141414] bg-[#F0EFEC]/40 p-3 flex flex-col justify-between relative overflow-hidden shadow-[2px_2px_0px_0px_rgba(20,20,20,0.15)]">
                   <div className="flex justify-between items-center">
@@ -219,12 +233,16 @@ export default function Dashboard({ summary, mealLogs, members }: DashboardProps
                   <div className="max-h-[150px] overflow-y-auto space-y-1 pr-1 font-mono text-xs">
                     {members.filter(m => m.status === 'Active').map((member) => {
                       const log = dayLogs.find(l => l.memberId === member.id);
+                      const breakfastVal = log ? (log.breakfast || 0) : 0;
                       const lunchVal = log ? log.lunch : 0;
                       const dinnerVal = log ? log.dinner : 0;
                       return (
                         <div key={member.id} className="flex justify-between items-center p-1.5 border border-[#141414]/10 bg-[#F0EFEC]/20 hover:border-[#141414]/30">
                           <span className="font-bold text-[#141414] text-[11px] truncate max-w-[120px] uppercase">{member.name}</span>
                           <div className="flex gap-2 text-[11px]">
+                            <span className="bg-emerald-100 text-emerald-800 border border-emerald-300 px-1 py-0.2 rounded font-bold">
+                              B: {breakfastVal}
+                            </span>
                             <span className="bg-amber-100 text-amber-800 border border-amber-300 px-1 py-0.2 rounded font-bold">
                               L: {lunchVal}
                             </span>

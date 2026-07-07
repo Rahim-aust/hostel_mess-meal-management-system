@@ -9,7 +9,7 @@ import {
   getDocs, 
   writeBatch
 } from 'firebase/firestore';
-import { Member, MealLog, BazarExpense, Utility, Deposit } from '../types';
+import { Member, MealLog, BazarExpense, Utility, Deposit, MessBranch } from '../types';
 import { getSeedData } from './dataStore';
 
 import firebaseConfig from '../../firebase-applet-config.json';
@@ -19,6 +19,7 @@ export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 
 // Collection References
 const MEMBERS_COLL = 'members';
+const BRANCHES_COLL = 'branches';
 const MEAL_LOGS_COLL = 'mealLogs';
 const BAZAR_EXP_COLL = 'bazarExpenses';
 const UTILITIES_COLL = 'utilities';
@@ -76,12 +77,25 @@ export async function seedFirestoreIfEmpty() {
       handleFirestoreError(err, OperationType.GET, MEMBERS_COLL);
       throw err;
     });
+    const branchesSnap = await getDocs(collection(db, BRANCHES_COLL)).catch(err => {
+      handleFirestoreError(err, OperationType.GET, BRANCHES_COLL);
+      throw err;
+    });
+    const seed = getSeedData();
+
+    if (branchesSnap.empty) {
+      const branchPromises = seed.branches.map((b) =>
+        setDoc(doc(db, BRANCHES_COLL, b.id), b).catch(err => {
+          handleFirestoreError(err, OperationType.WRITE, `${BRANCHES_COLL}/${b.id}`);
+        })
+      );
+      await Promise.all(branchPromises);
+    }
 
     if (membersSnap.empty) {
       console.log("Firestore is empty. Seeding data...");
-      const seed = getSeedData();
       const promises: Promise<void>[] = [];
-      
+
       // Seed members
       for (const m of seed.members) {
         promises.push(
@@ -135,6 +149,7 @@ export async function seedFirestoreIfEmpty() {
 
 // Subscribe to all changes in real-time
 export function subscribeToData(onUpdate: (data: {
+  branches: MessBranch[];
   members: Member[];
   mealLogs: MealLog[];
   bazarExpenses: BazarExpense[];
@@ -142,6 +157,7 @@ export function subscribeToData(onUpdate: (data: {
   deposits: Deposit[];
 }) => void) {
   
+  let branches: MessBranch[] = [];
   let members: Member[] = [];
   let mealLogs: MealLog[] = [];
   let bazarExpenses: BazarExpense[] = [];
@@ -153,9 +169,10 @@ export function subscribeToData(onUpdate: (data: {
   const triggerUpdate = (collName: string) => {
     loadedCollections.add(collName);
     
-    // Only dispatch the state update once ALL 5 collections have emitted at least one snapshot.
-    if (loadedCollections.size >= 5) {
+    // Only dispatch the state update once ALL collections have emitted at least one snapshot.
+    if (loadedCollections.size >= 6) {
       onUpdate({
+        branches,
         members,
         mealLogs,
         bazarExpenses,
@@ -164,6 +181,13 @@ export function subscribeToData(onUpdate: (data: {
       });
     }
   };
+
+  const unsubBranches = onSnapshot(collection(db, BRANCHES_COLL), (snap) => {
+    branches = snap.docs.map(d => d.data() as MessBranch);
+    triggerUpdate(BRANCHES_COLL);
+  }, (err) => {
+    handleFirestoreError(err, OperationType.GET, BRANCHES_COLL);
+  });
 
   const unsubMembers = onSnapshot(collection(db, MEMBERS_COLL), (snap) => {
     members = snap.docs.map(d => d.data() as Member);
@@ -201,6 +225,7 @@ export function subscribeToData(onUpdate: (data: {
   });
 
   return () => {
+    unsubBranches();
     unsubMembers();
     unsubMeals();
     unsubBazar();
@@ -210,6 +235,14 @@ export function subscribeToData(onUpdate: (data: {
 }
 
 // Real-time mutations
+export async function saveBranchToFirestore(branch: MessBranch) {
+  try {
+    await setDoc(doc(db, BRANCHES_COLL, branch.id), branch);
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, `${BRANCHES_COLL}/${branch.id}`);
+  }
+}
+
 export async function saveMemberToFirestore(member: Member) {
   try {
     await setDoc(doc(db, MEMBERS_COLL, member.id), member);
@@ -314,7 +347,7 @@ export async function resetFirestoreToDemo() {
     const batch = writeBatch(db);
     
     // Get all documents across collections
-    const collectionsList = [MEMBERS_COLL, MEAL_LOGS_COLL, BAZAR_EXP_COLL, UTILITIES_COLL, DEPOSITS_COLL];
+    const collectionsList = [BRANCHES_COLL, MEMBERS_COLL, MEAL_LOGS_COLL, BAZAR_EXP_COLL, UTILITIES_COLL, DEPOSITS_COLL];
     for (const collName of collectionsList) {
       const snap = await getDocs(collection(db, collName)).catch(err => {
         handleFirestoreError(err, OperationType.GET, collName);
@@ -328,6 +361,9 @@ export async function resetFirestoreToDemo() {
 
     // Re-seed
     const seed = getSeedData();
+    for (const b of seed.branches) {
+      await setDoc(doc(db, BRANCHES_COLL, b.id), b);
+    }
     for (const m of seed.members) {
       await setDoc(doc(db, MEMBERS_COLL, m.id), m);
     }
@@ -350,6 +386,7 @@ export async function resetFirestoreToDemo() {
 
 // Bulk restore / upload backup
 export async function uploadBackupToFirestore(backup: {
+  branches: MessBranch[];
   members: Member[];
   mealLogs: MealLog[];
   bazarExpenses: BazarExpense[];
@@ -360,7 +397,7 @@ export async function uploadBackupToFirestore(backup: {
     const batch = writeBatch(db);
     
     // Clear old collections first
-    const collectionsList = [MEMBERS_COLL, MEAL_LOGS_COLL, BAZAR_EXP_COLL, UTILITIES_COLL, DEPOSITS_COLL];
+    const collectionsList = [BRANCHES_COLL, MEMBERS_COLL, MEAL_LOGS_COLL, BAZAR_EXP_COLL, UTILITIES_COLL, DEPOSITS_COLL];
     for (const collName of collectionsList) {
       const snap = await getDocs(collection(db, collName)).catch(err => {
         handleFirestoreError(err, OperationType.GET, collName);
@@ -373,6 +410,9 @@ export async function uploadBackupToFirestore(backup: {
     await batch.commit();
 
     // Upload backup documents
+    for (const b of backup.branches) {
+      await setDoc(doc(db, BRANCHES_COLL, b.id), b);
+    }
     for (const m of backup.members) {
       await setDoc(doc(db, MEMBERS_COLL, m.id), m);
     }

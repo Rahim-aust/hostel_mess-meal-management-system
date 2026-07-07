@@ -1,8 +1,14 @@
 export type MemberStatus = 'Active' | 'Inactive';
 export type MemberRole = 'Manager' | 'Member';
 
+export interface MessBranch {
+  id: string;
+  name: string;
+}
+
 export interface Member {
   id: string;
+  branchId: string;
   name: string;
   email: string;
   phone: string;
@@ -12,14 +18,17 @@ export interface Member {
 
 export interface MealLog {
   id: string;
+  branchId: string;
   date: string; // YYYY-MM-DD
   memberId: string;
-  lunch: number; // e.g. 0, 0.5, 1, 1.5, 2
-  dinner: number; // e.g. 0, 0.5, 1, 1.5, 2
+  breakfast: number; // e.g. 0, 0.5, 1
+  lunch: number; // integers only, e.g. 0, 1, 2, 5
+  dinner: number; // integers only, e.g. 0, 1, 2, 5
 }
 
 export interface BazarExpense {
   id: string;
+  branchId: string;
   date: string; // YYYY-MM-DD
   amount: number;
   buyerId: string; // Member ID
@@ -28,6 +37,7 @@ export interface BazarExpense {
 
 export interface Utility {
   id: string;
+  branchId: string;
   month: string; // YYYY-MM
   bua: number; // Cook
   electricity: number;
@@ -39,6 +49,7 @@ export interface Utility {
 
 export interface Deposit {
   id: string;
+  branchId: string;
   date: string; // YYYY-MM-DD
   memberId: string;
   amount: number;
@@ -47,6 +58,7 @@ export interface Deposit {
 export interface MemberSummary {
   member: Member;
   totalMeals: number;
+  breakfastCount: number;
   lunchCount: number;
   dinnerCount: number;
   depositedAmount: number;
@@ -57,6 +69,7 @@ export interface MemberSummary {
 }
 
 export interface MonthlySummary {
+  branchId: string;
   month: string; // YYYY-MM
   totalBazarExpense: number;
   totalMeals: number;
